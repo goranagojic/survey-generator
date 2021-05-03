@@ -15,29 +15,33 @@ def tool():
     pass
 
 
-@tool.command()
+@tool.command(help="Load content to the database. Parameter `what` specifies object type to be loaded and parameter "
+                   "`directory` where to find the objects. Currently supports loading images to the database.")
 @click.argument('what', type=str, required=True)
-@click.option('--directory', type=str, required=True)
-@click.option('--extension', '-e', multiple=True, required=True)
+@click.option('--directory', type=str, required=True,
+              help="A path to the directory containing images. Immediate parent directory will be considered as a "
+                   "dataset name.")
+@click.option('--extension', '-e', multiple=True, required=True,
+              help="A list image extensions to be loaded from the directory. An extension is a string preceded by a dot"
+                   " sign (e.g. '.png').")
 def load(what, directory, extension):
     print(f"load {what} from {directory}.")
     if what == "images":
         Images.load_images(directory, extensions=list(extension))
 
 
-@tool.command()
+@tool.command(help="Generate questions or surveys depending of the `what` parameter value. "
+                   ""
+                   "If passed `questions`, the tool will generate a question of specified types for each image in the "
+                   "database, even if the question for that image have already been generated."
+                   ""
+                   "If passed `surveys`, the tool will generate surveys of type `stype` from all database questions not"
+                   " already assigned to the other, existing survey.")
 @click.argument('what', type=str, required=True)
-@click.option('--directory', type=str, required=True)
-def save(what, directory):
-    print(f"save {what} to {directory}.")
-    # TODO Implement
-
-
-@tool.command()
-@click.argument('what', type=str, required=True)
-@click.option("--qtypes", multiple=True, required=True)
-@click.option("--stype", type=click.Choice(['regular', 'control'], case_sensitive=False))
-@click.option("--n_questions", '-n', type=int)
+@click.option("--qtypes", multiple=True, required=True, help="Question type. Currently supported values are 1, 2 and 3.")
+@click.option("--stype", type=click.Choice(['regular', 'control'], case_sensitive=False), required=True,
+              help="Survey type. Currently  supported are `regular` and `control`.")
+@click.option("--n_questions", '-n', type=int, default=20, help="How many questions there will be per survey.")
 def generate(what, qtypes, stype, n_questions):
     if what == "questions":
         print(f"generate {what}.")
@@ -49,18 +53,20 @@ def generate(what, qtypes, stype, n_questions):
         survey_gen.generate_all()
 
 
-@tool.command()
+@tool.command(help="Exports database content to the directory specified. Currently supports survey export in json and "
+                   "html formats. At the moment, if requested, the tool exports all survey from the database.")
 @click.argument('what', type=str, required=True)
-@click.option("--where", type=str, required=True)
-@click.option("--export_type", type=click.Choice(["json", "html"]), default="json")
-@click.option("--survey_type", type=click.Choice(["regular", "control"]), default="regular")
+@click.option("--where", type=str, required=True, help="A path to directory where to export data.")
+@click.option("--export_type", type=click.Choice(["json", "html"]), default="json", help="In what format to export.")
+@click.option("--survey_type", type=click.Choice(["regular", "control"]), default="regular",
+              help="What type of survey you want to export if you are exporting surveys.")
 def export(what, where, export_type, survey_type):
     if what == "surveys":
         logger.info("Starting survey export...")
         SurveyGenerator.export_surveys(where, export_type=export_type, survey_type=survey_type)
 
 
-@tool.command()
+@tool.command(help="[Depricated] Primitive development testing tool.")
 @click.argument('what', type=str, required=True)
 def test(what):
     if what == "images":
