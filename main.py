@@ -38,11 +38,15 @@ def load(what, directory, extension):
                    "If passed `surveys`, the tool will generate surveys of type `stype` from all database questions not"
                    " already assigned to the other, existing survey.")
 @click.argument('what', type=str, required=True)
-@click.option("--qtypes", multiple=True, required=True, help="Question type. Currently supported values are 1, 2 and 3.")
+@click.option("--qtypes", multiple=True, required=True, help="Question type. Currently supported values are 1, 2 and "
+                                                             "3.")
 @click.option("--stype", type=click.Choice(['regular', 'control'], case_sensitive=False), required=True,
               help="Survey type. Currently  supported are `regular` and `control`.")
 @click.option("--n_questions", '-n', type=int, default=20, help="How many questions there will be per survey.")
-def generate(what, qtypes, stype, n_questions):
+@click.option("--n_surveys", type=int, help="Number of surveys to be generated. If not specified, there will be "
+                                            "generated as many surveys as there are unassigned questions in the "
+                                            "database.")
+def generate(what, qtypes, stype, n_questions, n_surveys):
     if what == "questions":
         print(f"generate {what}.")
         Questions.generate(question_types=list(qtypes))
@@ -50,7 +54,7 @@ def generate(what, qtypes, stype, n_questions):
         logger.info("Starting survey generation...")
         qtypes = list(qtypes)
         survey_gen = SurveyGenerator(question_types=qtypes, survey_type=stype, questions_per_survey=n_questions)
-        survey_gen.generate_all()
+        survey_gen.generate_all(n_surveys=n_surveys)
 
 
 @tool.command(help="Exports database content to the directory specified. Currently supports survey export in json and "

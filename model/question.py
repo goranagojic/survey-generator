@@ -84,15 +84,15 @@ class QuestionType1(Question):
             {
                 type: "html",
                 name: "q$quid-img",
-                html: "<div class=\\"img-zoom-container\\"><img id=\\"$imname\\" src=\\"images/$imfname\\"/>
-                       <div id=\\"$imname-zoom\\" class=\\"img-zoom-result\\"></div></div>"
+                html: "<div class='img-zoom-container'><div style='width: 500px; float: left'><img onload=\\"imageZoom('$imname', '$imname-zoom')\\" id='$imname' src='images/$imfname' style='width: 100%'/></div>
+                       <div id='$imname-zoom' class='img-zoom-result'></div></div>"
             },
             {
                 type: "radiogroup",
                 name: "q$quid-choice",
                 isRequired: true,
                 state: "expanded",
-                title: "Data Vam je slika ocnog dna. Od ponudjenih tvrdnji selektujte onu sa kojom se slazete.",
+                title: "Data Vam je slika očnog dna. Od ponuđenih tvrdnji selektujte onu sa kojom se slažete.",
                 choices: [
                 {
                     value: "diabetic_retinopathy",
@@ -250,7 +250,7 @@ class Questions:
                      .all()
 
     @staticmethod
-    def get_in_regular_survey(types):
+    def get_in_regular_survey(types=None):
         """
         Returns all questions of specific types that are assigned to any of regular surveys and are not assigned to any of control surveys.
 

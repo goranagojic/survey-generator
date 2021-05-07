@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from string import Template
@@ -62,9 +64,40 @@ class Survey(Base):
         },
         """
 
-    @staticmethod
-    def _generate_html_head():
-        pass
+    def _generate(self, survey_type=None):
+        survey_json = "{ pages: ["
+
+        # generate authorization page
+        if self.auth_page:
+            survey_json += Survey._generate_auth_page()
+
+        # generate pages for survey questions
+        for i, question in enumerate(self.questions):
+            question_json = self._generate_page(question)
+            if i != len(self.questions) - 1:  # put comma after all but the last generated page
+                question_json += ","
+            survey_json += question_json
+        if survey_type is not None:
+            # add survey type metadata object
+            pass
+        survey_json += "]}"
+
+        return survey_json
+
+    def _generate_page(self, question):
+        template = self._get_page_template()
+        return template.substitute({"pid": question.id, "questions": question.json})
+
+    def _get_page_template(self):
+        # $pid - survey page id
+        # $questions - questions json
+        return Template("""
+        {
+            name: "page-$pid",
+            $questions,
+            title: "Pitanje $pid"
+        }
+        """)
 
 
 class RegularSurvey(Survey):
@@ -82,36 +115,13 @@ class RegularSurvey(Survey):
         )
 
     def generate(self):
-        survey = "{ pages: ["
-
-        # generate authorization page
-        if self.auth_page:
-            survey += Survey._generate_auth_page()
-
-        # generate pages for survey questions
-        for i, question in enumerate(self.questions):
-            question_json = self._generate_page(question)
-            if i != len(self.questions) - 1:    # put comma after all but the last generated page
-                question_json += ","
-            survey += question_json
-        survey += "]}"
-
         # remove all unnecessary whitespace characters to reduce memory consumption
-        self.json = minify_json(survey)
-
-    def _generate_page(self, question):
-        return self._get_page_template().substitute({"pid": question.id, "questions": question.json})
+        self.json = minify_json(
+            super(RegularSurvey, self)._generate()
+        )
 
     def _get_page_template(self):
-        # $pid - survey page id
-        # $questions - questions json
-        return Template("""
-        {
-            name: "page-$pid",
-            $questions,
-            title: "Pitanje $pid"
-        }
-        """)
+        return super(RegularSurvey, self)._get_page_template()
 
 
 class ControlSurvey(Survey):
@@ -129,11 +139,12 @@ class ControlSurvey(Survey):
         )
 
     def generate(self):
-        raise NotImplementedError
+        survey_json = json.loads(super(ControlSurvey, self)._generate())
 
-    def _generate_page(self, question):
-        raise NotImplementedError
+        # remove all unnecessary whitespace characters to reduce memory consumption
+        self.json = minify_json(survey_json)
 
     def _get_page_template(self):
-        raise NotImplementedError
+        return super(ControlSurvey, self)._get_page_template()
+
 
