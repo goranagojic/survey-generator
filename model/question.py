@@ -99,10 +99,6 @@ class QuestionType1(Question):
                     text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Diabetic Retinopathy."
                 },
                 {
-                    value: "choroidal_neovascularization",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Choroidal Neovascularization."
-                },
-                {
                     value: "arteriosclerotic_retinopathy",
                     text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Arteriosclerotic Retinopathy."
                 },
@@ -113,6 +109,18 @@ class QuestionType1(Question):
                 {
                     value: "cillio_retinal_artery_occlusion",
                     text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Cillio-Retinal Artery Occlusion."
+                },
+                {
+                    value: "central_retinal_artery_occlusion",
+                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Central Retinal Artery Occlusion."
+                },
+                {
+                    value: "central_retinal_vein_occlusion",
+                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Central Retinal Vein Occlusion."
+                },
+                {
+                    value: "normal_or_hypertensive_retinopathy",
+                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Normal/Hypertensive Retinopathy."
                 }
                 ],
                 choicesOrder: "random",
@@ -131,11 +139,28 @@ class QuestionType1(Question):
                 maxRateDescription: "Sasvim"
             },
             {
-                type: "html",
-                name: "q$quid-metadata",
+                type: "text",
+                name: "q$quid-id",
                 visible: false,
-                html: "<div id=\\"question_id\\">$quid</div><div id=\\"image_id\\">$imid</div>
-                       <div id=\\"image_filename\\">$imfname</div>"
+                valueName: "question_id",
+                defaultValue: $quid,
+                readOnly: true
+            },
+            {
+                type: "text",
+                name: "im$imid-id",
+                visible: false,
+                valueName: "image_id",
+                defaultValue: $imid,
+                readOnly: true
+            },
+            {
+                type: "text",
+                name: "im$imid-filename",
+                visible: false,
+                valueName: "image_filename",
+                defaultValue: "$imfname",
+                readOnly: true
             }
         ]
         """)
@@ -245,9 +270,9 @@ class Questions:
         else:
             filters = []
         return session.query(Question)\
-                     .where(and_(Question.regular_survey == None, Question.control_survey == None))\
-                     .filter(*filters)\
-                     .all()
+                      .where(and_(Question.regular_survey == None, Question.control_survey == None))\
+                      .filter(*filters)\
+                      .all()
 
     @staticmethod
     def get_in_regular_survey(types=None):
