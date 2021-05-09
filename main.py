@@ -1,6 +1,7 @@
 import click
 
 from utils.database import Base, engine, session
+from model.disease import Disease
 from model.image import Images
 from model.question import *
 from model.survey import Survey, RegularSurvey, ControlSurvey

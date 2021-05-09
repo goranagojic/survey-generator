@@ -1,3 +1,5 @@
+import pandas as pd
+
 from sqlalchemy import Column, Integer, String, Enum, select
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -15,6 +17,7 @@ class Image(Base):
     dataset  = Column(String, nullable=False)
 
     questions = relationship("QuestionType1", back_populates="image")
+    diseases  = relationship("Disease")
 
     @hybrid_property
     def name(self):
@@ -113,8 +116,25 @@ class Images:
             images = [Image(img_path) for img_path in img_paths]
         logger.info(f"Loaded {len(images)} images.")
 
+        Images._load_image_metadata(images=images, src=directory)
+
         Images.bulk_insert(images)      # add new images to database
         logger.info(f"Inserted {len(images)} into the database.")
+
+    @staticmethod
+    def _load_image_metadata(images, src):
+
+        assert len(images) != 0
+
+        metadata_filepath = Path(src).with_name(images[0].dataset + ".metadata")
+        if not (metadata_filepath.exists() and metadata_filepath.is_file()):
+            return
+
+        pd.read_csv(
+            str(metadata_filepath),
+
+        )
+
 
     @staticmethod
     def get_by_name(image_filenames):

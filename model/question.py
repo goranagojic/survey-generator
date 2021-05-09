@@ -137,30 +137,6 @@ class QuestionType1(Question):
                 rateMax: 7,
                 minRateDescription: "Nimalo",
                 maxRateDescription: "Sasvim"
-            },
-            {
-                type: "text",
-                name: "q$quid-id",
-                visible: false,
-                valueName: "question_id",
-                defaultValue: $quid,
-                readOnly: true
-            },
-            {
-                type: "text",
-                name: "im$imid-id",
-                visible: false,
-                valueName: "image_id",
-                defaultValue: $imid,
-                readOnly: true
-            },
-            {
-                type: "text",
-                name: "im$imid-filename",
-                visible: false,
-                valueName: "image_filename",
-                defaultValue: "$imfname",
-                readOnly: true
             }
         ]
         """)
