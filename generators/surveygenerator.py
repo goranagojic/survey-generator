@@ -107,8 +107,12 @@ class SurveyGenerator:
         # export content
         surveys = session.query(Survey).where(Survey.type == survey_type).all()
         for survey in surveys:
+            if type(survey) == RegularSurvey:
+                prefix = "regular"
+            else:
+                prefix = "control"
             if export_type == "json":
-                survey_filename = f"survey-{survey.id}.json"
+                survey_filename = f"{prefix}-survey-{survey.id}.json"
                 target_path = Path(where) / survey_filename
                 with open(target_path, "w") as fout:
                     fout.write(survey.json)
@@ -128,7 +132,7 @@ class SurveyGenerator:
                         "jqueryselector": "$"
                     })
                 })
-                survey_filename = f"survey-{survey.id}.html"
+                survey_filename = f"{prefix}-survey-{survey.id}.html"
                 target_path = Path(where) / survey_filename
                 with open(target_path, "w") as fout:
                     fout.write(html)

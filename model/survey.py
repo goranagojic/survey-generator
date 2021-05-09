@@ -139,10 +139,10 @@ class ControlSurvey(Survey):
         )
 
     def generate(self):
-        survey_json = json.loads(super(ControlSurvey, self)._generate())
-
         # remove all unnecessary whitespace characters to reduce memory consumption
-        self.json = minify_json(survey_json)
+        self.json = minify_json(
+            super(ControlSurvey, self)._generate()
+        )
 
     def _get_page_template(self):
         return super(ControlSurvey, self)._get_page_template()
