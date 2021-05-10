@@ -1,4 +1,5 @@
 import pandas as pd
+import sqlalchemy.exc
 
 from sqlalchemy import Column, Integer, String, Enum, select
 from sqlalchemy.orm import relationship
@@ -6,7 +7,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from pathlib import Path
 
 from utils.database import Base, session
-from model.disease import Disease
+from model.disease import Disease, Diseases, association_table
 from utils.logger import logger
 
 
@@ -18,7 +19,7 @@ class Image(Base):
     dataset  = Column(String, nullable=False)
 
     questions = relationship("QuestionType1", back_populates="image")
-    diseases  = relationship("Disease")
+    diseases  = relationship("Disease", secondary=association_table, back_populates="images")
 
     @hybrid_property
     def name(self):
@@ -164,7 +165,9 @@ class Images:
                     if image_name_part in image.filename:
                         diseases = list()
                         for disease in tokens[1:]:
-                            diseases.append(Disease(disease))
+                            d = Disease(disease)
+                            Diseases.insert(d)
+                            diseases.append(d)
                         image.diseases = diseases
 
     @staticmethod

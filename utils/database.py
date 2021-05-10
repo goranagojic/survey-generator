@@ -1,8 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
+from pathlib import Path
 
-DATABASE_PATH = '/home/gorana/PycharmProjects/SurveyGenerator/database/survey.db'
+
+DATABASE_PATH = str(Path('../database/survey.db').resolve())
 
 SQLALCHEMY_CONN_STRING = 'sqlite:///' + DATABASE_PATH
 
