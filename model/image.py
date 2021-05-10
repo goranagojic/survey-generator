@@ -165,8 +165,7 @@ class Images:
                     if image_name_part in image.filename:
                         diseases = list()
                         for disease in tokens[1:]:
-                            d = Disease(disease)
-                            Diseases.insert(d)
+                            d = Diseases.insert(disease)
                             diseases.append(d)
                         image.diseases = diseases
 
