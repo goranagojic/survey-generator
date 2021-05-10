@@ -6,6 +6,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from pathlib import Path
 
 from utils.database import Base, session
+from model.disease import Disease
 from utils.logger import logger
 
 
@@ -116,25 +117,55 @@ class Images:
             images = [Image(img_path) for img_path in img_paths]
         logger.info(f"Loaded {len(images)} images.")
 
-        Images._load_image_metadata(images=images, src=directory)
+        if len(images) != 0:
+            metadata_file = Path(directory).resolve() / (images[0].dataset.lower() + ".metadata")
+            logger.info(f"Trying to load image metadata from a file {metadata_file}.")
+            if not (metadata_file.exists() and metadata_file.is_file()):
+                logger.warning(f"Metadata file {metadata_file} not found or is not a file! Skipping image metadata "
+                               f"loading.")
+            else:
+                Images._load_image_metadata(images=images,metadata_filepath=metadata_file)
+                logger.info(f"Successfully loaded image metadata.")
 
         Images.bulk_insert(images)      # add new images to database
-        logger.info(f"Inserted {len(images)} into the database.")
+        logger.info(f"Inserted {len(images)} images into the database.")
 
     @staticmethod
-    def _load_image_metadata(images, src):
+    def _load_image_metadata(images, metadata_filepath):
+        """
+        Load image metadata from a metadata file.
 
-        assert len(images) != 0
+        File stores metadata per image per line. Each line starts with full or partial image name that is followed with
+        metadata separated by commas.
 
-        metadata_filepath = Path(src).with_name(images[0].dataset + ".metadata")
-        if not (metadata_filepath.exists() and metadata_filepath.is_file()):
-            return
+        E.g.
+            000000,diabetic_retinopathy,vein_occlusion
+        where 000000 is part of the image filename, and `diabetic_retinopathy` and `vein_occlusion` are two metadata
+        strings for the image.
 
-        pd.read_csv(
-            str(metadata_filepath),
+        :param images: Images for which to load metadata.
+        :param metadata_filepath: Relative or absolute path to the metadata file.
+        :return: None
+        """
 
-        )
+        with open(metadata_filepath, "r") as metf:
+            metadata = metf.readlines()
 
+        if len(metadata) == 0:
+            logger.warning("Metadata file is empty.")
+        else:
+            for line in metadata:
+                if line == "":
+                    continue
+                tokens = [token.strip() for token in line.split(",")]
+                assert len(tokens) > 1
+                image_name_part = tokens[0]
+                for image in images:
+                    if image_name_part in image.filename:
+                        diseases = list()
+                        for disease in tokens[1:]:
+                            diseases.append(Disease(disease))
+                        image.diseases = diseases
 
     @staticmethod
     def get_by_name(image_filenames):

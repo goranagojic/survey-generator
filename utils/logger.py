@@ -1,7 +1,11 @@
 import logging
 import datetime
 
-LOG_FILE_PATH = "/home/gorana/PycharmProjects/SurveyGenerator/survey-generator/logs/app-{}.log".format(str(datetime.datetime.utcnow()))
+from pathlib import Path
+
+LOG_FILE_PATH = "./logs/app-{}.log".format(str(datetime.datetime.utcnow()))
+if not Path(LOG_FILE_PATH).parent.exists():
+    Path(LOG_FILE_PATH).parent.mkdir(parents=True)
 
 # Create a custom logger
 logger = logging.getLogger(__name__)
