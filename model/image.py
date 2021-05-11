@@ -1,5 +1,4 @@
-import pandas as pd
-import sqlalchemy.exc
+import json
 
 from sqlalchemy import Column, Integer, String, Enum, select
 from sqlalchemy.orm import relationship
@@ -119,7 +118,7 @@ class Images:
         logger.info(f"Loaded {len(images)} images.")
 
         if len(images) != 0:
-            metadata_file = Path(directory).resolve() / (images[0].dataset.lower() + ".metadata")
+            metadata_file = Path(directory).resolve() / (images[0].dataset.lower() + ".json")
             logger.info(f"Trying to load image metadata from a file {metadata_file}.")
             if not (metadata_file.exists() and metadata_file.is_file()):
                 logger.warning(f"Metadata file {metadata_file} not found or is not a file! Skipping image metadata "
@@ -150,24 +149,34 @@ class Images:
         """
 
         with open(metadata_filepath, "r") as metf:
-            metadata = metf.readlines()
+            metadata = json.load(metf)
 
-        if len(metadata) == 0:
-            logger.warning("Metadata file is empty.")
-        else:
-            for line in metadata:
-                if line == "":
-                    continue
-                tokens = [token.strip() for token in line.split(",")]
-                assert len(tokens) > 1
-                image_name_part = tokens[0]
-                for image in images:
-                    if image_name_part in image.filename:
-                        diseases = list()
-                        for disease in tokens[1:]:
-                            d = Diseases.insert(disease)
-                            diseases.append(d)
-                        image.diseases = diseases
+        for image_metadata in metadata:
+            for image in images:
+                image_diseases = list()
+                if image_metadata["image_name"] in image.name:
+                    diseases = image_metadata["diseases"]
+                    for disease in diseases:
+                        d = Diseases.insert(name=disease["name"], token=disease["token"])
+                        image_diseases.append(d)
+                    image.diseases = image_diseases
+        #
+        # if len(metadata) == 0:
+        #     logger.warning("Metadata file is empty.")
+        # else:
+        #     for line in metadata:
+        #         if line == "":
+        #             continue
+        #         tokens = [token.strip() for token in line.split(",")]
+        #         assert len(tokens) > 1
+        #         image_name_part = tokens[0]
+        #         for image in images:
+        #             if image_name_part in image.filename:
+        #                 diseases = list()
+        #                 for disease in tokens[1:]:
+        #                     d = Diseases.insert(disease)
+        #                     diseases.append(d)
+        #                 image.diseases = diseases
 
     @staticmethod
     def get_by_name(image_filenames):

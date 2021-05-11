@@ -14,21 +14,23 @@ class Disease(Base):
     __tablename__ = "disease"
 
     id     = Column(Integer, primary_key=True, autoincrement=True)
-    name   = Column(String, nullable=False, unique=True)
+    name   = Column(String, nullable=False)
+    token  = Column(String, nullable=False, unique=True)
 
     images = relationship("Image", secondary=association_table, back_populates="diseases")
 
-    def __init__(self, name):
+    def __init__(self, name, token):
         self.name = name
+        self.token = token
 
 
 class Diseases:
 
     @staticmethod
-    def insert(disease):
-        results = session.query(Disease).where(Disease.name == disease).all()
+    def insert(name, token):
+        results = session.query(Disease).where(Disease.token == token).all()
         if results is None or len(results) == 0:
-            d = Disease(disease)
+            d = Disease(token=token, name=name)
             try:
                 session.add(d)
             except:
@@ -37,7 +39,7 @@ class Diseases:
                 session.commit()
                 return d
         else:
-            logger.warning(f"Disease with a name {disease} already exists in a database. A duplicate will not be "
+            logger.warning(f"Disease with a name {token} already exists in a database. A duplicate will not be "
                            f"inserted.")
             return results[0]
 
