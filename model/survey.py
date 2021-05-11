@@ -80,7 +80,11 @@ class Survey(Base):
         if survey_type is not None:
             # add survey type metadata object
             pass
-        survey_json += "]}"
+        survey_json += "]"
+
+        # survey localization - serbian
+        survey_json += ",pagePrevText:\"Prethodna\",pageNextText:\"Naredna\"," \
+                       "completeText:\"Završi\",completedHtml: \"Uspešno ste popunili anketu. Hvala!\"}"
 
         return survey_json
 

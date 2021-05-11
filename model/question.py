@@ -112,6 +112,7 @@ class QuestionType1(Question):
                 isRequired: true,
                 state: "expanded",
                 title: "Data Vam je slika očnog dna. Od ponuđenih tvrdnji selektujte onu sa kojom se slažete.",
+                requiredErrorText: "Molimo Vas da odgovorite na ovo pitanje.",
                 choices: [
                     $questions
                 ],
@@ -124,6 +125,7 @@ class QuestionType1(Question):
                 name: "q$quid-certanity",
                 state: "expanded",
                 title: "Koliko ste pouzdani u odgovor koji ste dali u prethodnom pitanju?",
+                requiredErrorText: "Molimo Vas da odgovorite na ovo pitanje.",
                 isRequired: true,
                 rateMin: 0,
                 rateMax: 7,
