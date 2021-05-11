@@ -23,6 +23,16 @@ class Disease(Base):
         self.name = name
         self.token = token
 
+    def __repr__(self):
+        return "<Disease (\n\tid: '{}',\n\tname: '{}',\n\ttoken: '{}'\n\t)>".format(
+            str(self.id),
+            self.name,
+            self.token
+        )
+
+    def __str__(self):
+        return self.token
+
 
 class Diseases:
 
