@@ -8,6 +8,7 @@ from utils.database import Base, session
 from utils.logger import logger
 from utils.tools import minify_json
 from model.image import Images
+from model.disease import Diseases
 
 
 class Question(Base):
@@ -66,7 +67,8 @@ class QuestionType1(Question):
                 "quid": self.id,
                 "imid": self.image.id,
                 "imname": self.image.name,
-                "imfname": self.image.filename
+                "imfname": self.image.filename,
+                "questions": QuestionType1._get_questions()
             })
             self.json = minify_json(question_json)
         else:
@@ -74,11 +76,28 @@ class QuestionType1(Question):
             raise ValueError(f"Cannot generate question {self.id} because it does not have associated image.")
 
     @staticmethod
+    def _get_questions():
+        diseases = Diseases.get_all()
+        questions_json = ""
+        for i, disease in enumerate(diseases):
+            template = Template("""
+            {
+                value: "$token",
+                text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem $name."
+            }
+            """).substitute({"token": disease.token, "name": disease.name})
+            questions_json += template
+            if i != len(diseases) - 1:
+                questions_json += ","
+        return questions_json
+
+    @staticmethod
     def _get_question_template():
         # $quid - id pitanja
         # $imid - id slike vezane za pitanje
         # $imname - ime slike koja se prikazuje, mora da se nalazi u images direktorijumu
         # $imfname - puno ime slike sa ekstenzijom
+        # $questions - izgenerisani json za bolesti na slici
         template = Template("""
         elements: [
             {
@@ -94,34 +113,7 @@ class QuestionType1(Question):
                 state: "expanded",
                 title: "Data Vam je slika očnog dna. Od ponuđenih tvrdnji selektujte onu sa kojom se slažete.",
                 choices: [
-                {
-                    value: "diabetic_retinopathy",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Diabetic Retinopathy."
-                },
-                {
-                    value: "arteriosclerotic_retinopathy",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Arteriosclerotic Retinopathy."
-                },
-                {
-                    value: "geographic_atrophy_rpe",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Geographic Atrophy RPE."
-                },
-                {
-                    value: "cillio_retinal_artery_occlusion",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Cillio-Retinal Artery Occlusion."
-                },
-                {
-                    value: "central_retinal_artery_occlusion",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Central Retinal Artery Occlusion."
-                },
-                {
-                    value: "central_retinal_vein_occlusion",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Central Retinal Vein Occlusion."
-                },
-                {
-                    value: "normal_or_hypertensive_retinopathy",
-                    text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem Normal/Hypertensive Retinopathy."
-                }
+                    $questions
                 ],
                 choicesOrder: "random",
                 hasNone: true,

@@ -43,3 +43,7 @@ class Diseases:
                            f"inserted.")
             return results[0]
 
+    @staticmethod
+    def get_all():
+        return session.query(Disease).all()
+
