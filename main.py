@@ -29,6 +29,8 @@ def load(what, directory, extension):
     print(f"load {what} from {directory}.")
     if what == "images":
         Images.load_images(directory, extensions=list(extension))
+    elif what == "surveyresult":
+        pass
 
 
 @tool.command(help="Generate questions or surveys depending of the `what` parameter value. "

@@ -1,12 +1,15 @@
 import json
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date
 from sqlalchemy.orm import relationship
 from string import Template
 from datetime import datetime
+from pathlib import Path
 
 from utils.database import Base
 from utils.tools import minify_json
+from utils.logger import logger
+from model.user import Users
 
 
 class Survey(Base):
@@ -17,6 +20,7 @@ class Survey(Base):
     json        = Column(Text)
     created_at  = Column(DateTime, nullable=False)
 
+    survey_results = relationship("SurveyResult", back_populates="survey")
     valid_types = ["regular", "control"]
 
     __mapper_args__ = {
@@ -34,6 +38,41 @@ class Survey(Base):
             self.type,
             str(self.created_at)
         )
+
+    def load_results(self, survey_json_filepath):
+        """
+
+        :param survey_json_filepath:
+        :return:
+        """
+        if not Path(survey_json_filepath).exists():
+            logger.error(f"File {survey_json_filepath} does not exist.")
+            raise FileNotFoundError(f"File {survey_json_filepath} does not exist.")
+        if Path(survey_json_filepath).is_dir():
+            logger.error(f"Expecting a file, but {survey_json_filepath} is a directory.")
+            raise IsADirectoryError(f"Expecting a file, but {survey_json_filepath} is a directory.")
+
+        with open(survey_json_filepath, "r") as f:
+            survey_json = json.load(f)
+
+        n_results = survey_json["ResultCount"]
+        survey_results = survey_json["Data"]
+        for result in survey_results:
+            user = Users.get_user_by_access_token(result["q-token"])
+            if user is None:
+                logger.error("User with token '{}' does not exist.".format(result["q-token"]))
+                raise ValueError("User with token '{}' does not exist.".format(result["q-token"]))
+            # TODO izdvoj sada parove choice-certainty odgovora
+
+
+
+            # get user from the database
+
+            # parse survey number from one of the questions
+
+            # get survey from the database
+
+            # create and add new survey result
 
     @staticmethod
     def _generate_auth_page():
@@ -118,6 +157,9 @@ class RegularSurvey(Survey):
             "0" if self.questions is None else str(len(self.questions))
         )
 
+    def load_results(self):
+        super().load_results()
+
     def generate(self):
         # remove all unnecessary whitespace characters to reduce memory consumption
         self.json = minify_json(
@@ -152,3 +194,17 @@ class ControlSurvey(Survey):
         return super(ControlSurvey, self)._get_page_template()
 
 
+class SurveyResult(Base):
+    __tablename__ = 'surveyresult'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    date        = Column(Date)
+    survey_id   = Column(Integer, ForeignKey("survey.id"))
+    user_id     = Column(Integer, ForeignKey("user.id"))
+
+    survey      = relationship("Survey", back_populates='survey_results')
+    user        = relationship("User",   back_populates='survey_results')
+    answers     = relationship("Answer", back_populates="survey_result")
+
+    def __init__(self):
+        raise NotImplementedError

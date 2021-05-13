@@ -54,6 +54,10 @@ class Diseases:
             return results[0]
 
     @staticmethod
+    def get_by_token(token):
+        return session.query(Disease).where(Disease.token == token).one()
+
+    @staticmethod
     def get_all():
         return session.query(Disease).all()
 
