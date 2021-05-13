@@ -36,7 +36,7 @@ class Question(Base):
         self.created_at = datetime.now()
 
     def __repr__(self):
-        return "<Question id: ('{}', type: '{}', created at: '{}', in regular survey {}, in control survey {})>".format(
+        return "<Question (id: '{}', type: '{}', created at: '{}', in regular survey {}, in control survey {})>".format(
             str(self.id),
             str(self.type),
             str(self.created_at),
@@ -102,13 +102,13 @@ class QuestionType1(Question):
         elements: [
             {
                 type: "html",
-                name: "q$quid-img",
+                name: "sXYZ-q$quid-img",
                 html: "<div class='img-zoom-container'><div style='width: 500px; float: left'><img onload=\\"imageZoom('$imname', '$imname-zoom')\\" id='$imname' src='images/$imfname' style='width: 100%'/></div>
                        <div id='$imname-zoom' class='img-zoom-result'></div></div>"
             },
             {
                 type: "radiogroup",
-                name: "q$quid-choice",
+                name: "sXYZ-q$quid-choice",
                 isRequired: true,
                 state: "expanded",
                 title: "Data Vam je slika očnog dna. Od ponuđenih tvrdnji selektujte onu sa kojom se slažete.",
@@ -122,7 +122,7 @@ class QuestionType1(Question):
             },
             {
                 type: "rating",
-                name: "q$quid-certanity",
+                name: "sXYZ-q$quid-certanity",
                 state: "expanded",
                 title: "Koliko ste pouzdani u odgovor koji ste dali u prethodnom pitanju?",
                 requiredErrorText: "Molimo Vas da odgovorite na ovo pitanje.",

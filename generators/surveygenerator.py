@@ -1,4 +1,4 @@
-import json
+import regex as re
 
 from random import randint
 from pathlib import Path
@@ -71,6 +71,9 @@ class SurveyGenerator:
 
             # generate survey json and update the survey in the database
             survey.generate()
+
+            # replace survey id placeholders in questions associated to survey with the survey id
+            survey.json = re.sub("XYZ", str(survey.id), survey.json)
             session.commit()
 
             # stop survey generation if required number of surveys is reached
