@@ -10,7 +10,8 @@ from utils.database import Base
 from utils.tools import minify_json
 from utils.logger import logger
 from model.user import Users
-
+from model.disease import Diseases
+from model.answer import AnswerType1
 
 class Survey(Base):
     __tablename__ = 'survey'
@@ -62,15 +63,19 @@ class Survey(Base):
             if user is None:
                 logger.error("User with token '{}' does not exist.".format(result["q-token"]))
                 raise ValueError("User with token '{}' does not exist.".format(result["q-token"]))
-            # TODO izdvoj sada parove choice-certainty odgovora
+
+            first_question = False
+            for question_str, answer_str in result:
+                if first_question is False:
+                    # TODO parse survey number from one of the questions
+                    # TODO get survey from the database
+                    first_question = True
+                if "-choice" in question_str:
+                    # TODO get question id
+                    question_id = -1
+                    answer = AnswerType1(user, question_id=question_id, disease_token=answer_str)
 
 
-
-            # get user from the database
-
-            # parse survey number from one of the questions
-
-            # get survey from the database
 
             # create and add new survey result
 
