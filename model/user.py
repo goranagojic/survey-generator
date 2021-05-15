@@ -19,6 +19,7 @@ class User(Base):
 
     def __init__(self, name, access_token=None):
         self.name = name
+        self.access_token = access_token
         if access_token is None:
             self.access_token = token_urlsafe(nbytes=16)
         self.created_at = datetime.now()
@@ -38,12 +39,12 @@ class Users:
         :return:
         """
         if access_token is None:
-            results = None
+            result = None
         else:
-            results = Users.get_user_by_access_token(access_token=access_token)
+            result = Users.get_user_by_access_token(access_token=access_token)
 
-        if results is None or len(results) == 0:
-            new_user = User(name=name)
+        if result is None:
+            new_user = User(name=name, access_token=access_token)
             try:
                 session.add(new_user)
             except:
@@ -52,9 +53,9 @@ class Users:
                 session.commit()
                 return new_user
         else:
-            logger.warning(f"Disease with access_token {access_token} already exists in a database. "
+            logger.warning(f"A user with with access_token '{access_token}' already exists in a database. "
                            f"A duplicate will not be inserted.")
-            return results[0]
+            return result
 
     @staticmethod
     def update(user):
@@ -75,4 +76,4 @@ class Users:
 
     @staticmethod
     def get_user_by_access_token(access_token):
-        return session.query(User).where(User.access_token == access_token).all()
+        return session.query(User).where(User.access_token == access_token).first()
