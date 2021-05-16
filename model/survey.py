@@ -1,4 +1,5 @@
 import json
+import regex as re
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date
 from sqlalchemy.orm import relationship
@@ -6,12 +7,12 @@ from string import Template
 from datetime import datetime
 from pathlib import Path
 
-from utils.database import Base
+from utils.database import Base, session
 from utils.tools import minify_json
 from utils.logger import logger
 from model.user import Users
-from model.disease import Diseases
 from model.answer import AnswerType1
+
 
 class Survey(Base):
     __tablename__ = 'survey'
@@ -40,23 +41,44 @@ class Survey(Base):
             str(self.created_at)
         )
 
-    def load_results(self, survey_json_filepath):
+    @staticmethod
+    def load_results(survey_json_filepath):
         """
+        Loads survey results from surveyjs json file format for the Experiment 1 survey type.
 
-        :param survey_json_filepath:
-        :return:
+        Expected format of a survey result:
+        ...
+        "Data": [{
+            "sXY-qZW-choice": <some-disease-token string or "none">,
+            "sXY-qZW-certainty: <some-numerical-value>",
+            <... the above sequence can be repeated multiple times ...>
+            "HappendAt": "<some-date-value>"
+        }]
+
+        A file can contain multiple results for the same survey. Each result is parsed separately and for each parsed
+        result an instance of SurveyResult is created. The instance consist of array of AnswerType1 objects, where each
+        object is associated with a corresponding QuestionType1, a User that has filled the survey, a Disease that the
+        user has selected and certainty
+
+        :param survey_json_filepath: A path to the survey result json file.
+        :return: None
         """
+        # does survey result json file exist?
         if not Path(survey_json_filepath).exists():
             logger.error(f"File {survey_json_filepath} does not exist.")
             raise FileNotFoundError(f"File {survey_json_filepath} does not exist.")
         if Path(survey_json_filepath).is_dir():
             logger.error(f"Expecting a file, but {survey_json_filepath} is a directory.")
             raise IsADirectoryError(f"Expecting a file, but {survey_json_filepath} is a directory.")
+        logger.info(f"Importing survey results from file {survey_json_filepath}.")
 
         with open(survey_json_filepath, "r") as f:
             survey_json = json.load(f)
 
-        n_results = survey_json["ResultCount"]
+        # matches for strings like s<digits>-q<digits>-choice and s<digits>-q<digits>-certainty
+        question_re = re.compile("s\d+-q\d+-(choice|certainty)", re.ASCII)
+
+        # results are stored inside "Data" json array
         survey_results = survey_json["Data"]
         for result in survey_results:
             user = Users.get_user_by_access_token(result["q-token"])
@@ -64,20 +86,38 @@ class Survey(Base):
                 logger.error("User with token '{}' does not exist.".format(result["q-token"]))
                 raise ValueError("User with token '{}' does not exist.".format(result["q-token"]))
 
+            # generate AnswerType1 objects for each pair of question-choice and question-certainty pairs in response
+            # json
             first_question = False
-            for question_str, answer_str in result:
+            answers = dict()
+            for question_str, answer_str in result.items():
+                # if question identifier is not like sXY-qZW-choice or sXY-qZW-certainty skip
+                if not question_re.match(question_str):
+                    continue
+                question_id = int(question_str.split('-')[1][1:])
                 if first_question is False:
-                    # TODO parse survey number from one of the questions
-                    # TODO get survey from the database
+                    survey_id = int(question_str.split('-')[0][1:])
+                    survey = Surveys.get_by_id(survey_id)
+                    assert survey is not None
                     first_question = True
                 if "-choice" in question_str:
-                    # TODO get question id
-                    question_id = -1
-                    answer = AnswerType1(user, question_id=question_id, disease_token=answer_str)
+                    if question_id not in answers.keys():
+                        answers[question_id] = AnswerType1(user, question_id=question_id, disease_token=answer_str)
+                    else:
+                        answers[question_id].set_disease(disease_token=answer_str)
+                if "-certainty" in question_str:
+                    certainty = int(answer_str)
+                    if question_id not in answers.keys():
+                        answers[question_id] = AnswerType1(user, question_id=question_id, certainty=certainty)
+                    else:
+                        answers[question_id].set_certainty(certainty=certainty)
 
+            # create list of Answer objects from the dictionary
+            answers = [answer for _, answer in answers.items()]
 
-
-            # create and add new survey result
+            # create a survey result object and insert it to the database
+            survey_result = SurveyResult(user=user, survey=survey, answers=answers)
+            survey_result.insert()
 
     @staticmethod
     def _generate_auth_page():
@@ -199,8 +239,15 @@ class ControlSurvey(Survey):
         return super(ControlSurvey, self)._get_page_template()
 
 
+class Surveys:
+
+    @staticmethod
+    def get_by_id(id):
+        return session.query(Survey).where(Survey.id == id).one()
+
+
 class SurveyResult(Base):
-    __tablename__ = 'surveyresult'
+    __tablename__ = 'survey_result'
 
     id          = Column(Integer, primary_key=True, autoincrement=True)
     date        = Column(Date)
@@ -211,5 +258,16 @@ class SurveyResult(Base):
     user        = relationship("User",   back_populates='survey_results')
     answers     = relationship("Answer", back_populates="survey_result")
 
-    def __init__(self):
-        raise NotImplementedError
+    def __init__(self, survey=None, user=None, answers=None):
+        self.survey = survey
+        self.user = user
+        self.answers = answers
+
+    def insert(self):
+        try:
+            session.add(self)
+        except:
+            session.rollback()
+        finally:
+            session.commit()
+

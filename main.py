@@ -107,6 +107,16 @@ def test(what):
         session.add(test_qt1)
         session.commit()
 
+    elif what == "survey_result":
+        from model.survey import Survey
+
+        survey_result_path = "/home/gorana/PycharmProjects/SurveyGenerator/survey-generator/docs/regular survey 1.json"
+        Survey.load_results(survey_json_filepath=survey_result_path)
+    elif what == "users":
+        from model.user import Users
+        Users.insert(name="gorana gojic", access_token="a")
+        Users.insert(name="veljko petrovic", access_token="abccdaaaafghaaaaaa")
+
 
 if __name__ == '__main__':
     tool()

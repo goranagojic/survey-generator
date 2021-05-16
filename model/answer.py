@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, PrimaryKeyConstraint
+from sqlalchemy import Column, Integer, ForeignKey, PrimaryKeyConstraint, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from utils.database import Base, session
@@ -11,13 +11,13 @@ class Answer(Base):
 
     question_id     = Column(Integer, ForeignKey('question.id'))
     user_id         = Column(Integer, ForeignKey('user.id'))
-    surveyresult_id = Column(Integer, ForeignKey('surveyresult.id'))
+    surveyresult_id = Column(Integer, ForeignKey('survey_result.id'))
     type            = Column(Integer)
     valid_types     = Question.valid_types
 
-    __table_args__ = {
-        PrimaryKeyConstraint('question_id', 'user_id')
-    }
+    __table_args__ = (
+        PrimaryKeyConstraint('question_id', 'user_id'), {}
+    )
     __mapper_args__ = {
         'polymorphic_identity': 0,
         'polymorphic_on': type,
@@ -41,34 +41,51 @@ class AnswerType1(Answer):
         'polymorphic_identity': 1
     }
 
-    question_id = Column(Integer, ForeignKey('answer.question_id'))
-    user_id     = Column(Integer, ForeignKey('answer.user_id'))
+    question_id = Column(Integer)
+    user_id     = Column(Integer)
     disease_id  = Column(Integer, ForeignKey('disease.id'))
     certainty   = Column(Integer, nullable=False)
 
-    __table_args__ = {
-        PrimaryKeyConstraint('question_id', 'user_id')
-    }
+    __table_args__ = (
+        PrimaryKeyConstraint('question_id', 'user_id'),
+        ForeignKeyConstraint(
+            columns=("question_id", "user_id"),
+            refcolumns=("answer.question_id", "answer.user_id")
+        ), {}
+    )
 
     question = relationship("Question")
     disease  = relationship("Disease")
     user     = relationship("User")
 
-    def __init__(self, user, question_id, disease_token):
+    def __init__(self, user, question_id, disease_token=None, certainty=None):
         # get question for question_id
         question = Questions.get_by_id(question_id)
         assert question is not None
         self.question_id = question.id
+        self.question = question
 
-        # get disease for a selected token
-        disease = Diseases.get_by_token(disease_token)
-        assert disease is not None
-        self.disease = disease
-        self.disease_id = disease.id
+        if disease_token is not None:
+            self.set_disease(disease_token=disease_token)
+
+        if certainty is not None:
+            self.set_certainty(certainty=certainty)
 
         # attach the user
         self.user = user
         self.user_id = user.id
+
+    def set_certainty(self, certainty):
+        self.certainty = certainty
+
+    def set_disease(self, disease_token):
+        # get disease for a selected token
+        if disease_token.lower() != "none":
+            disease = Diseases.get_by_token(disease_token)
+            self.disease_id = disease.id
+        else:
+            disease = None
+        self.disease = disease
 
     def __repr__(self):
         return "<Answer (question_id: '{}', answered by user: '{}' in survey '{}', type: '{}', " \
