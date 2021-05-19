@@ -44,10 +44,10 @@ class SurveyGenerator:
         while True:     # iterate while there are more questions to include in some of the surveys
             if self.survey_type == "regular":
                 questions = Questions.get_unassigned()
-                survey = RegularSurvey()
+                survey = RegularSurvey(auth_page=False)
             else:
                 questions = Questions.get_in_regular_survey()
-                survey = ControlSurvey()
+                survey = ControlSurvey(auth_page=False)
 
             if len(questions) == 0:     # all questions are already added to the survey
                 logger.info(f"There are no more unassigned questions satisfying the criteria for '{self.survey_type}' "

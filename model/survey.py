@@ -196,6 +196,9 @@ class RegularSurvey(Survey):
 
     questions = relationship("Question", back_populates="regular_survey")
 
+    def __init__(self, auth_page=True):
+        super().__init__(auth_page=auth_page)
+
     def __repr__(self):
         return super().__repr__() + \
             "\nRegularSurvey (questions: '{}')".format(
@@ -222,6 +225,9 @@ class ControlSurvey(Survey):
     id = Column(Integer, ForeignKey("survey.id"), primary_key=True)
 
     questions = relationship("Question", back_populates="control_survey")
+
+    def __init__(self, auth_page=True):
+        super().__init__(auth_page=auth_page)
 
     def __repr__(self):
         return super().__repr__() + \
