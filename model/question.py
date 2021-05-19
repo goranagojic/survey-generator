@@ -84,11 +84,19 @@ class QuestionType1(Question):
             {
                 value: "$token",
                 text: "Smatram da ova slika predstavlja pacijenta sa oboljenjem $name."
-            }
+            },
             """).substitute({"token": disease.token, "name": disease.name})
             questions_json += template
-            if i != len(diseases) - 1:
-                questions_json += ","
+        questions_json += Template("""
+            
+            {
+                value: "none",
+                text: "Smatram da ova slika ne prikazuje ni jedno od navedenih oboljenja."
+            }, {
+                value: "not_applicable",
+                text: "Slika nije dovoljno dobra za postavljanje dijagnoze." 
+            }
+            """).substitute({})
         return questions_json
 
     @staticmethod
@@ -115,10 +123,7 @@ class QuestionType1(Question):
                 requiredErrorText: "Molimo Vas da odgovorite na ovo pitanje.",
                 choices: [
                     $questions
-                ],
-                choicesOrder: "random",
-                hasNone: true,
-                noneText: "Smatram da ova slika ne prikazuje ni jedno od navedenih oboljenja."
+                ]
             },
             {
                 type: "rating",
