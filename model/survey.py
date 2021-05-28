@@ -168,7 +168,8 @@ class Survey(Base):
 
         # survey localization - serbian
         survey_json += ",pagePrevText:\"Prethodna\",pageNextText:\"Naredna\"," \
-                       "completeText:\"Završi\",completedHtml: \"Uspešno ste popunili anketu. Hvala!\"}"
+                       "completeText:\"Završi\",completedHtml: \"Uspešno ste popunili anketu. Hvala!<br>" \
+                       "<a href=\"./anketa.php\">Pređite na sledeću anketu</a>\"}"
 
         return survey_json
 

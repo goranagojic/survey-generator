@@ -201,6 +201,12 @@ class SurveyGenerator:
     <!-- zoom script -->
     <!-- see: https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_image_zoom -->
     <script>
+      let DoctorData = {
+         //PHP-DOCTOR-DATA-REPLACE
+      };
+      let SurveyData = {
+         //PHP-SURVEY-DATA-REPLACE
+      };
       function imageZoom(imgID, resultID) {
         var img, lens, result, cx, cy;
         img = document.getElementById(imgID);
@@ -272,8 +278,13 @@ class SurveyGenerator:
     <script>
       Survey.StylesManager.applyTheme("modern");
       var surveyJSON = $survey_json
-      function sendDataToServer(survey) {
-          survey.sendResult('<TODO fill this with data from SurveyJS>');
+      function sendDataToServer(sender) {
+          let aid = SurveyData.id;
+          let akey = SurveyData.APIKey;
+          let xhr = new XMLHttpRequest();
+          xhr.open("POST", "./advance.php?anketa=" + aid + "&api=" + akey);
+          xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+          xhr.send(JSON.stringify(sender.data));
       }
       var survey = new Survey.Model(surveyJSON);
       $jqueryselector("#surveyContainer").Survey({

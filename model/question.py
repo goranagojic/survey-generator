@@ -129,13 +129,13 @@ class QuestionType1(Question):
                 type: "rating",
                 name: "sXYZ-q$quid-certainty",
                 state: "expanded",
-                title: "Koliko ste pouzdani u odgovor koji ste dali u prethodnom pitanju?",
+                title: "Koliko ste sigurni u odgovor koji ste dali u prethodnom pitanju?",
                 requiredErrorText: "Molimo Vas da odgovorite na ovo pitanje.",
                 isRequired: true,
-                rateMin: 0,
-                rateMax: 7,
-                minRateDescription: "Nimalo",
-                maxRateDescription: "Sasvim"
+                rateMin: 1,
+                rateMax: 5,
+                minRateDescription: "Veoma nesiguran/na",
+                maxRateDescription: "Veoma siguran/na "
             }
         ]
         """)
