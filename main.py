@@ -16,6 +16,16 @@ def tool():
     pass
 
 
+@tool.command(help="Initialize database with predefined contents.")
+@click.argument('what', type=str, required=True)
+def init(what):
+    if what.lower() == 'users':
+        from model.user import Users
+        Users.insert(name="Ana Oros")
+        Users.insert(name="Vladislav Dzinic")
+        Users.insert(name="Zorka Grgic")
+
+
 @tool.command(help="Load content to the database. Parameter `what` specifies object type to be loaded and parameter "
                    "`directory` where to find the objects. Currently supports loading images to the database.")
 @click.argument('what', type=str, required=True)
