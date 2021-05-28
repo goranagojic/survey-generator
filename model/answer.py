@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, PrimaryKeyConstraint, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import Column, Integer, ForeignKey, PrimaryKeyConstraint, ForeignKeyConstraint, Boolean
 from sqlalchemy.orm import relationship
 
 from utils.database import Base, session
@@ -45,6 +45,7 @@ class AnswerType1(Answer):
     user_id     = Column(Integer)
     disease_id  = Column(Integer, ForeignKey('disease.id'))
     certainty   = Column(Integer, nullable=False)
+    invalid     = Column(Boolean)
 
     __table_args__ = (
         PrimaryKeyConstraint('question_id', 'user_id'),
@@ -58,7 +59,8 @@ class AnswerType1(Answer):
     disease  = relationship("Disease")
     user     = relationship("User")
 
-    def __init__(self, user, question_id, disease_token=None, certainty=None):
+    def __init__(self, user, question_id, disease_token=None, certainty=None, invalid=False):
+        self.invalid = invalid
         # get question for question_id
         question = Questions.get_by_id(question_id)
         assert question is not None
@@ -79,17 +81,21 @@ class AnswerType1(Answer):
         self.certainty = certainty
 
     def set_disease(self, disease_token):
-        # get disease for a selected token
-        if disease_token.lower() != "none":
+        # get disease for a string token
+        if disease_token.lower() == "none":
+            disease = None
+        elif disease_token.lower() == "not_applicable":
+            self.invalid = True
+            disease = None
+        else:
             disease = Diseases.get_by_token(disease_token)
             self.disease_id = disease.id
-        else:
-            disease = None
         self.disease = disease
 
     def __repr__(self):
-        return "<Answer (question_id: '{}', answered by user: '{}' in survey '{}', type: '{}', " \
+        return "<Answer (invalid: {}, question_id: '{}', answered by user: '{}' in survey '{}', type: '{}', " \
                "disease selected: '{}', certainty: '{}')>".format(
+                self.invalid,
                 self.question_id,
                 self.user.name,
                 self.survey_result.id,

@@ -81,20 +81,26 @@ class Survey(Base):
         # results are stored inside "Data" json array
         survey_results = survey_json["Data"]
         for result in survey_results:
-            user = Users.get_user_by_access_token(result["q-token"])
+            uid = result["doctorID"]
+            user = Users.get_user_by_id(uid=uid)
             if user is None:
-                logger.error("User with token '{}' does not exist.".format(result["q-token"]))
-                raise ValueError("User with token '{}' does not exist.".format(result["q-token"]))
+                logger.error("User with id '{}' does not exist.".format(uid))
+                raise ValueError("User with id '{}' does not exist.".format(uid))
 
             # generate AnswerType1 objects for each pair of question-choice and question-certainty pairs in response
             # json
             first_question = False
+
+            # answers dictionary contains pairs: <question_id>: <answer_object>
+            # where type 1 answer object stores selected disease and certainty
             answers = dict()
             for question_str, answer_str in result.items():
                 # if question identifier is not like sXY-qZW-choice or sXY-qZW-certainty skip
                 if not question_re.match(question_str):
                     continue
                 question_id = int(question_str.split('-')[1][1:])
+
+                # get survey id from an identifier of the first processed question
                 if first_question is False:
                     survey_id = int(question_str.split('-')[0][1:])
                     survey = Surveys.get_by_id(survey_id)

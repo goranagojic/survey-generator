@@ -77,3 +77,7 @@ class Users:
     @staticmethod
     def get_user_by_access_token(access_token):
         return session.query(User).where(User.access_token == access_token).first()
+
+    @staticmethod
+    def get_user_by_id(uid):
+        return session.query(User).where(User.id == uid).first()
