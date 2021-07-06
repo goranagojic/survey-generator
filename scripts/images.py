@@ -1,5 +1,6 @@
 import click
 import shutil
+import os
 
 from glob import glob
 from tqdm import tqdm
@@ -47,7 +48,9 @@ def generate_segmaps(input, output):
                                           'se bez tacke.', default="png")
 @click.option('--outfile', type=str, help='Fajl u kojem se nalaze imena svih slika izdvojenih iz staging sistema'
                                 'na osnovu imena iz ulaznog fajla.')
-def collect_staging_data(infile, outfile, stagingdir, ssuffix):
+@click.option('--strict', is_flag=True, help='Da li nazivi zadati u datoteci moraju biti tvrdo jednaki nazivima '
+                                             'datoteka iz zadatog staging direktorijuma.')
+def collect_staging_data(infile, outfile, stagingdir, ssuffix, strict):
     """
     Za zadate slike trazi imena istih tih slika u staging direktorijumu (u staging direktorijumu su simbolicki
     linkovi imenovani drugacije u odnosu na originalne slike).
@@ -57,7 +60,7 @@ def collect_staging_data(infile, outfile, stagingdir, ssuffix):
                    bez zareza ili slicnih delimitera.
     :param outfile: Datoteka u kojoj ce biti zapisana trazena imena, jedno ime po redu.
     :param stagingdir: Putanja do staging direktorijuma.
-    :param ssuffix: Sufiks slika iz staging direktorijuma medju kojima se traze poklapanja.
+    :param ssuffix: Sufiks slika iz staging direktorijuma medju kojima se traze poklapanja (zadaje se bez tacke).
     :return:
     """
     infile = Path(infile)
@@ -81,14 +84,28 @@ def collect_staging_data(infile, outfile, stagingdir, ssuffix):
     staging_images = glob(str(stagingdir / f'*.{ssuffix}'))
     staging_images = [Path(simage) for simage in staging_images]
 
+    if strict:
+        print("Strict comparison.")
+    else:
+        print("Weak comparison.")
+
     # za svaki zadati naziv iz ulazne datoteke za svaku staging sliku (koja je simbolicki link
     # na sliku) proveriti da li je zadati naziv deo naziva staging slike
     out = list()
     for img_name in image_names:
         print(f"Searching through staging entries for string {img_name}.")
-        img_out = [simage.name for simage in staging_images
-                   if img_name in simage.resolve().name]
-        out.extend(img_out)
+        for simage in staging_images:
+            filepath = os.readlink(str(simage))
+            # print(f"Looking in {filepath}")
+            if strict:
+                condition = img_name == Path(filepath).name
+            else:
+                condition = img_name in Path(filepath).name
+            if condition:
+                out.append(simage.name)
+
+        # img_out = [simage.name for simage in staging_images if img_name in simage.resolve().name]
+        # out.extend(img_out)
 
     # sacuvaj rezultate, jedan unos, jedna linija
     outfile = Path(outfile)
@@ -126,7 +143,7 @@ def collect_data(imgfile, dataset, indirs, outdir, ext):
         image_names = [iname.rstrip() for iname in f.readlines() if not iname.startswith("#")]
 
     dataset = dataset.upper()
-    assert dataset in ["DRIVE", "STARE"]
+    assert dataset in ["DRIVE", "STARE", "CHASE"]
 
     outdir = Path(outdir)
     assert outdir.is_dir(), f"Izlazni direktorijum ne moze biti na putanji {outdir}"
@@ -155,6 +172,41 @@ def collect_data(imgfile, dataset, indirs, outdir, ext):
                 shutil.copyfile(seg_masks_dir / iname, netdir / iname)
             except FileNotFoundError:
                 print(f'Datoteka {seg_masks_dir / iname} nije pronadjena!')
+
+
+@tools.command()
+@click.option('--listfile', type=str, required=True, help='Datoteka u kojoj se nalaze nazivi datoteka koje treba '
+                                                          'kopirati.')
+@click.option('--indir', type=str, required=True, help='Direktorijum u kojem se traze datoteke ciji su nazivi navedeni '
+                                                       'u <listfile>.')
+@click.option('--outdir', type=str, required=True, help='Direktorijum u koji se kopiraju datoteke iz direktorijuma '
+                                                        '<indir>.')
+def copy_data(listfile, indir, outdir):
+    """
+    Kopiraj sve datoteke cija su imena navedena u listi datoteka iz direktorijuma <indir> u direktorijum <outdir>.
+
+    :param listfile: Datoteka u kojoj se nalaze nazivi datoteka koje treba kopirati.
+    :param indir:    Direktorijum u kojem se traze datoteke ciji su nazivi navedeni u <listfile>.
+    :param outdir:   Direktorijum u koji se kopiraju datoteke iz direktorijuma <indir>.
+    :return:
+    """
+    with open(listfile, 'r') as f:
+        image_names = [iname.rstrip() for iname in f.readlines() if not iname.startswith("#")]
+
+    outdir = Path(outdir)
+    # assert outdir.exists() and not outdir.is_dir(), f"Izlazni direktorijum ne moze biti na putanji {outdir}"
+    outdir.mkdir(exist_ok=True, parents=True)
+
+    indir = Path(indir)
+    assert indir.is_dir() and indir.exists(), \
+        f"Direktorijum {indir} ne postoji ili nije direktorijum."
+
+    for iname in image_names:
+        # iname = str(Path(iname).with_suffix('').with_suffix(ext))
+        try:
+            shutil.copyfile(indir / iname, outdir / iname)
+        except FileNotFoundError:
+            print(f'Datoteka {indir / iname} nije pronadjena!')
 
 
 if __name__ == '__main__':
