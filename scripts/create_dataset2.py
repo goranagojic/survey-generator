@@ -33,6 +33,13 @@ from glob import glob
 from pathlib import Path
 from sklearn.metrics import matthews_corrcoef
 
+verbosity = 1
+
+def vprint(v, *args):
+    if v == verbosity:
+        for arg in args:
+            print(arg)
+
 
 def get_data(source, dtype=np.uint8):
     """
@@ -94,7 +101,7 @@ def get_mask_path(dataset, image_name):
         return image_name.with_suffix(".png")
 
 
-def calculate_mcc(segmentation_mask, groundtruth):
+def calculate_mcc(segmentation_mask, groundtruth, fov_mask=None):
     """
     Calculates MCC value for a segmentation mask and a groundtruth image.
 
@@ -106,13 +113,24 @@ def calculate_mcc(segmentation_mask, groundtruth):
     :return:
     """
     assert segmentation_mask.shape == groundtruth.shape
+    if fov_mask is not None:
+        assert fov_mask.shape == segmentation_mask.shape
+
     segmentation_mask = segmentation_mask.flatten()
     groundtruth = groundtruth.flatten()
+
+    if fov_mask is not None:
+        assert fov_mask.max() == 1 and fov_mask.min() == 0
+        fov_mask = fov_mask.flatten()
+        # anuliraj sve elemente segmentacione mape i slike labele koji se ne nalaze unutar fov-a
+        # pikseli koji su u fov-u su na mesto elemenata u nizu imaju vrednost 1
+        segmentation_mask = np.logical_and(segmentation_mask, fov_mask)
+        groundtruth = np.logical_and(groundtruth, fov_mask)
 
     return matthews_corrcoef(segmentation_mask, groundtruth)
 
 
-def get_median(values):
+def get_median(values, paths):
     """
     Sortira vrednosti u nizu i racuna median. U slucaju da niz ima neparan broj elemenata, medijan je element
     na indeksu len(values) // 2 + 1. U slucaju parnog broja elemenata, kao medijan vraca element na indeksu
@@ -120,14 +138,18 @@ def get_median(values):
     definicija medijana).
 
     :param values: Niz razlomljenih vrednosti.
-    :return: Medijan vrednost.
+    :param paths:  Niz putanja koje odgovaraju slikama za koje su prosledjene vrednosti values.
+    :return: Par medijan vrednosti i liste sortiranih putanja spram rastucih mcc vrednosti
     """
-    sorted(values)
+    tvalues = [(v, p) for v, p in zip(values, paths)]
+    tvalues.sort(key=lambda v: v[0], reverse=False)
+    tpaths = [p for _, p in tvalues]
+
     if len(values) % 2 == 0:
         index = len(values) // 2 + 1
     else:
         index = len(values) // 2
-    return values[index]
+    return values[index], tpaths
 
 
 if __name__ == '__main__':
@@ -145,68 +167,84 @@ if __name__ == '__main__':
 
     NETWORKS = ["eswanet", "iternet", "iternet-uni", "laddernet", "saunet", "unet", "vesselunet", "vgan"]
 
-    # KORAK 1 - ucitavanje groundtruth podataka i maski
-    labels, masks, segmentation_masks = list(), list(), list()
     min_mccs, median_mccs, max_mccs = list(), list(), list()
-    for dataset, image_dir in [("drive", DRIVE_IMAGE_PATH), ("stare", STARE_IMAGE_PATH), ("chase", CHASE_IMAGE_PATH)]:
-        # dobavi putanje do svih fajlova u direktorijumu images za odgovarajuci set podataka
-        files = glob(f"{image_dir}/*")
-        assert len(files) != 0, f"Na putanji {image_dir} nema nikakvih datoteka."
+    for counter, network in enumerate(NETWORKS):
+        segmentation_mask_paths, mccs = list(), list()
+        for dataset, image_dir in [("drive", DRIVE_IMAGE_PATH), ("stare", STARE_IMAGE_PATH),
+                                   ("chase", CHASE_IMAGE_PATH)]:
+            files = glob(f"{image_dir}/*")
+            assert len(files) != 0, f"Na putanji {image_dir} nema nikakvih datoteka."
+            # za svaku datoteku (pretpostavljeno sliku)
+            #   - dobavi labelu
+            #   - dobavi masku
+            #   - za svaku mrezu od 8 dobavi segmentacione mape za zadatu sliku
+            #   - pronadji 3 segmentacione mape - sa min, median i max mcc
+            for file in files:
+                print(f"Ucitavam vezane podatke za sliku {file}.")
+                label_name = get_label_path(dataset, Path(file).name)
+                mask_name = get_mask_path(dataset, Path(file).name)
 
-        # za svaku datoteku (pretpostavljeno sliku)
-        #   - dobavi labelu
-        #   - dobavi masku
-        #   - za svaku mrezu od 8 dobavi segmentacione mape za zadatu sliku
-        #   - pronadji 3 segmentacione mape - sa min, median i max mcc
-        for file in files:
-            print(f"Ucitavam vezane podatke za sliku {file}.")
-            label_name = get_label_path(dataset, Path(file).name)
-            mask_name = get_mask_path(dataset, Path(file).name)
+                if dataset.lower() == "drive":
+                    label_path = Path(DRIVE_LABEL_PATH) / label_name
+                    mask_path = Path(DRIVE_MASK_PATH) / mask_name
+                elif dataset.lower() == "stare":
+                    label_path = Path(STARE_LABEL_PATH) / label_name
+                    mask_path = Path(STARE_MASK_PATH) / mask_name
+                else:
+                    label_path = Path(CHASE_LABEL_PATH) / label_name
+                    mask_path = Path(CHASE_MASK_PATH) / mask_name
 
-            if dataset.lower() == "drive":
-                label_path = Path(DRIVE_LABEL_PATH) / label_name
-                mask_path = Path(DRIVE_MASK_PATH) / mask_name
-            elif dataset.lower() == "stare":
-                label_path = Path(STARE_LABEL_PATH) / label_name
-                mask_path = Path(STARE_MASK_PATH) / mask_name
-            else:
-                label_path = Path(CHASE_LABEL_PATH) / label_name
-                mask_path = Path(CHASE_MASK_PATH) / mask_name
+                label = get_data(source=label_path, dtype=np.uint8)
+                fov_mask = get_data(source=mask_path, dtype=np.uint8)
 
-            label = get_data(source=label_path, dtype=np.uint8)
-            labels.append(label)
-            masks.append(get_data(source=mask_path, dtype=np.uint8))
+                print(f"Ucitao labelu sa putanje {label_path}.")
+                print(f"Ucitao masku sa putanje {mask_path}.")
 
-            print(f"Ucitao labelu sa putanje {label_path}.")
-            print(f"Ucitao masku sa putanje {mask_path}.")
+                spath = Path(SEG_MASKS_PATH) / dataset.upper() / network / label_name.with_suffix(".png")
+                segmentation_mask_paths.append(spath)
+                seg_mask = get_data(spath, dtype=np.uint8)
+                print(f"Ucitao segmentacionu mapu sa putanje {spath}.")
 
-            segmentation_masks, segmentation_mask_paths = list(), list()
-            for counter, network in enumerate(NETWORKS):
-                segmask_path = Path(SEG_MASKS_PATH) / dataset.upper() / network / label_name.with_suffix(".png")
-                segmentation_mask_paths.append(segmask_path)
-                seg_mask = get_data(segmask_path, dtype=np.uint8)
-                segmentation_masks.append(seg_mask)
-                print(f"{counter}. Ucitao segmentacionu mapu sa putanje {segmask_path}.")
+                mccs.append(calculate_mcc(segmentation_mask=seg_mask, fov_mask=fov_mask, groundtruth=label))
 
-            mccs = list()
-            for seg_mask in segmentation_masks:
-                mccs.append(calculate_mcc(seg_mask, label))
+        min_mcc_idx = mccs.index(min(mccs))
+        median_mcc, segmentation_mask_paths = get_median(mccs, segmentation_mask_paths)
+        median_mcc_idx = mccs.index(median_mcc)
+        max_mcc_idx = mccs.index(max(mccs))
 
-            min_mcc_idx = mccs.index(min(mccs))
-            median_mcc_idx = mccs.index(get_median(mccs))
-            max_mcc_idx = mccs.index(max(mccs))
+        min_mccs.append((
+            segmentation_mask_paths[min_mcc_idx],
+            segmentation_mask_paths[min_mcc_idx].parent.parent.name,
+            "min"
+        ))
+        median_mccs.append((
+            segmentation_mask_paths[median_mcc_idx],
+            segmentation_mask_paths[median_mcc_idx].parent.parent.name,
+            "median"
+        ))
+        max_mccs.append((
+            segmentation_mask_paths[max_mcc_idx],
+            segmentation_mask_paths[max_mcc_idx].parent.parent.name,
+            "max"
+        ))
 
-            assert len(segmentation_masks) == len(mccs)
+    candidates = min_mccs
+    candidates.extend(median_mccs)
+    candidates.extend(max_mccs)
+    # candidates = min_mccs[len(min_mccs):] + median_mccs[len(median_mccs):] + max_mccs
+    with open("candidates.log", "w") as f:
+        for candidate in candidates:
+            f.write(str(candidate[2] + ", " + candidate[1]) + ", " + str(candidate[0]) + "\n")
 
-            min_mccs.append((segmentation_mask_paths[min_mcc_idx], segmentation_masks[min_mcc_idx]))
-            median_mccs.append((segmentation_mask_paths[median_mcc_idx], segmentation_masks[median_mcc_idx]))
-            max_mccs.append((segmentation_mask_paths[max_mcc_idx], segmentation_masks[max_mcc_idx]))
-
-    candidates = min_mccs[len(min_mccs):] + median_mccs[len(median_mccs):] + max_mccs
     with open("zaAnketu.txt", "w") as f:
         for candidate in candidates:
-            f.write(str(candidate[0]))
-            f.write("\n")
+            image_name = candidate[0].name
+            dataset = candidate[1]
+            for network in NETWORKS:
+                segmask_path = Path(SEG_MASKS_PATH) / dataset.upper() / network / Path(image_name).with_suffix(".png")
+                f.write(str(segmask_path) + "\n")
+
+
 
 
 

@@ -203,10 +203,12 @@ def copy_data(listfile, indir, outdir):
 
     for iname in image_names:
         # iname = str(Path(iname).with_suffix('').with_suffix(ext))
-        try:
-            shutil.copyfile(indir / iname, outdir / iname)
-        except FileNotFoundError:
-            print(f'Datoteka {indir / iname} nije pronadjena!')
+        oname = Path(iname).name
+        outdir_tmp = (outdir / iname).parent
+        if not outdir_tmp.exists():
+            print(f"Pravim direktorijum {outdir_tmp}.")
+            outdir_tmp.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src=indir / iname, dst=outdir_tmp / oname, follow_symlinks=True)
 
 
 if __name__ == '__main__':
