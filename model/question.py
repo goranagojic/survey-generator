@@ -146,7 +146,8 @@ class QuestionType2(Question):
     __tablename__ = "qtype2"
     __mapper_args__ = {'polymorphic_identity': 2}
 
-    id = Column(Integer, ForeignKey("question.id"), primary_key=True)
+    id      = Column(Integer, ForeignKey("question.id"), primary_key=True)
+    images  = relationship("Image", secondary=..., back_populates="")
 
     def __repr__(self):
         return super().__repr__() + "\n<QuestionType2 ()>"
@@ -154,7 +155,12 @@ class QuestionType2(Question):
     def generate(self):
         raise NotImplementedError
 
-    def _get_json(self):
+    @staticmethod
+    def _get_questions():
+        raise NotImplementedError
+
+    @staticmethod
+    def _get_question_template():
         template = Template("""
             formatirani ispis za pitanje {}
         """)

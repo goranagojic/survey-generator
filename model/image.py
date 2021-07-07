@@ -6,7 +6,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from pathlib import Path
 
 from utils.database import Base, session
-from model.disease import Disease, Diseases, association_table
+from model.disease import Disease, Diseases, association_table, ForeignKey
 from utils.logger import logger
 
 
@@ -17,8 +17,11 @@ class Image(Base):
     filename = Column(String(50), nullable=False, unique=True)
     dataset  = Column(String, nullable=False)
 
-    questions = relationship("QuestionType1", back_populates="image")
-    diseases  = relationship("Disease", secondary=association_table, back_populates="images")
+    image_group_id = Column(Integer, ForeignKey("image_group.id"), nullable=True)
+
+    image_group = relationship("ImageGroup", back_populates="images")
+    questions   = relationship("QuestionType1", back_populates="image")
+    diseases    = relationship("Disease", secondary=association_table, back_populates="images")
 
     @hybrid_property
     def name(self):
@@ -44,6 +47,17 @@ class Image(Base):
             self.filename,
             str(len(self.questions))
         )
+
+
+class ImageGroup:
+    __tablename__ = "image_group"
+    id      = Column(Integer, primary_key=True, autoincrement=True)
+    gid     = Column(Integer, nullable=False)
+
+    images  = relationship("Image", back_populates="image_group")
+
+    def __init__(self, gid):
+        self.gid = gid
 
 
 class Images:

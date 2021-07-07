@@ -120,6 +120,8 @@ def calculate_mcc(segmentation_mask, groundtruth, fov_mask=None):
     groundtruth = groundtruth.flatten()
 
     if fov_mask is not None:
+        fov_mask[fov_mask != 0] = 1  # ako u masci nisu koriscene binarne vrednosti 1 i 0 da obeleze piksele unutar/
+                                     # izvan fov-a
         assert fov_mask.max() == 1 and fov_mask.min() == 0
         fov_mask = fov_mask.flatten()
         # anuliraj sve elemente segmentacione mape i slike labele koji se ne nalaze unutar fov-a
