@@ -147,7 +147,7 @@ class QuestionType2(Question):
     __mapper_args__ = {'polymorphic_identity': 2}
 
     id      = Column(Integer, ForeignKey("question.id"), primary_key=True)
-    images  = relationship("Image", secondary=..., back_populates="")
+    # images  = relationship("Image", secondary=..., back_populates="")
 
     def __repr__(self):
         return super().__repr__() + "\n<QuestionType2 ()>"

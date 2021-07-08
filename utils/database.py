@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 
 
-DATABASE_PATH = str(Path('../database/survey.db').resolve())
+DATABASE_PATH = str(Path('../database/survey.db?charset=utf8').resolve())
 
 SQLALCHEMY_CONN_STRING = 'sqlite:///' + DATABASE_PATH
 

@@ -30,7 +30,7 @@ class Image(Base):
         """
         return self.filename[:self.filename.rfind('.')]
 
-    def __init__(self, filepath):
+    def __init__(self, filepath, gid=None):
         # filepath treba da izgleda:
         #     /neka/putanja/do/npr/DRIVE/000123.png ili
         #     /neka/putanja/do/npr/STARE/000123.png
@@ -38,6 +38,8 @@ class Image(Base):
         self.filename = filepath.name
         self.dataset = filepath.parent.name
         self.root = str(filepath.parent.parent)
+        self.image_group_id = gid
+        self.image_group = ImageGroup.get_by_id(gid=gid)
 
     def __repr__(self):
         return "<Image (\n\tid: '{}',\n\troot: '{}',\n\tdataset: '{}',\n\tfilename: '{}',\n\tquestions: '{}'\n)>".format(
@@ -49,7 +51,7 @@ class Image(Base):
         )
 
 
-class ImageGroup:
+class ImageGroup(Base):
     __tablename__ = "image_group"
     id      = Column(Integer, primary_key=True, autoincrement=True)
     gid     = Column(Integer, nullable=False)
@@ -58,6 +60,16 @@ class ImageGroup:
 
     def __init__(self, gid):
         self.gid = gid
+
+    @staticmethod
+    def get_by_id(gid):
+        """
+        :return:
+        """
+        if gid is None:
+            return None
+        logger.info(f"Load from database images with names {image_filenames}.")
+        return session.query(ImageGroup).where(ImageGroup.gid == gid).all()
 
 
 class Images:
@@ -126,6 +138,10 @@ class Images:
 
         img_paths = Path(directory).glob("*")
         if extensions is not None or len(extensions) != 0:
+            # for img_path in img_paths:
+            #     if img_path.suffix.lower() in extensions:
+            #         print(img_path)
+            #         images = list()
             images = [Image(img_path) for img_path in img_paths if img_path.suffix.lower() in extensions]
         else:
             images = [Image(img_path) for img_path in img_paths]
@@ -138,7 +154,7 @@ class Images:
                 logger.warning(f"Metadata file {metadata_file} not found or is not a file! Skipping image metadata "
                                f"loading.")
             else:
-                Images._load_image_metadata(images=images,metadata_filepath=metadata_file)
+                Images._load_image_metadata(images=images, metadata_filepath=metadata_file)
                 logger.info(f"Successfully loaded image metadata.")
 
         Images.bulk_insert(images)      # add new images to database
