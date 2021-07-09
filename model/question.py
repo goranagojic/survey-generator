@@ -7,7 +7,7 @@ from datetime import datetime
 from utils.database import Base, session
 from utils.logger import logger
 from utils.tools import minify_json
-from model.image import Images
+from model.image import Images, img_qt2_table
 from model.disease import Diseases
 
 
@@ -147,7 +147,7 @@ class QuestionType2(Question):
     __mapper_args__ = {'polymorphic_identity': 2}
 
     id      = Column(Integer, ForeignKey("question.id"), primary_key=True)
-    # images  = relationship("Image", secondary=..., back_populates="")
+    images = relationship("Image", secondary="img_qt2_table", back_populates="questions2")
 
     def __repr__(self):
         return super().__repr__() + "\n<QuestionType2 ()>"

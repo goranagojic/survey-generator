@@ -1,6 +1,6 @@
 import json
 
-from sqlalchemy import Column, Integer, String, Enum, select
+from sqlalchemy import Column, Integer, String, Table, Enum, select, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from pathlib import Path
@@ -10,18 +10,22 @@ from model.disease import Disease, Diseases, association_table, ForeignKey
 from utils.logger import logger
 
 
+img_qt2_table = Table('image_questty2', Base.metadata,
+                          Column("image_id", Integer, ForeignKey("image.id")),
+                          Column("question_id", Integer, ForeignKey("qt2.id")))
+
+
 class Image(Base):
     __tablename__ = "image"
-    id       = Column(Integer, primary_key=True, autoincrement=True)
-    root     = Column(String, nullable=False)
-    filename = Column(String(50), nullable=False, unique=True)
-    dataset  = Column(String, nullable=False)
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    root      = Column(String, nullable=False)
+    filename  = Column(String(50), nullable=False, unique=True)
+    dataset   = Column(String, nullable=False)
+    group_id  = Column(Integer, nullable=True)
 
-    image_group_id = Column(Integer, ForeignKey("image_group.id"), nullable=True)
-
-    image_group = relationship("ImageGroup", back_populates="images")
-    questions   = relationship("QuestionType1", back_populates="image")
-    diseases    = relationship("Disease", secondary=association_table, back_populates="images")
+    questions    = relationship("QuestionType1", back_populates="image")
+    questions_t2 = relationship("QuestionType2", back_populates="images")
+    diseases     = relationship("Disease", secondary=img_qt2_table, back_populates="images")
 
     @hybrid_property
     def name(self):
@@ -39,7 +43,6 @@ class Image(Base):
         self.dataset = filepath.parent.name
         self.root = str(filepath.parent.parent)
         self.image_group_id = gid
-        self.image_group = ImageGroup.get_by_id(gid=gid)
 
     def __repr__(self):
         return "<Image (\n\tid: '{}',\n\troot: '{}',\n\tdataset: '{}',\n\tfilename: '{}',\n\tquestions: '{}'\n)>".format(
@@ -49,27 +52,6 @@ class Image(Base):
             self.filename,
             str(len(self.questions))
         )
-
-
-class ImageGroup(Base):
-    __tablename__ = "image_group"
-    id      = Column(Integer, primary_key=True, autoincrement=True)
-    gid     = Column(Integer, nullable=False)
-
-    images  = relationship("Image", back_populates="image_group")
-
-    def __init__(self, gid):
-        self.gid = gid
-
-    @staticmethod
-    def get_by_id(gid):
-        """
-        :return:
-        """
-        if gid is None:
-            return None
-        logger.info(f"Load from database images with names {image_filenames}.")
-        return session.query(ImageGroup).where(ImageGroup.gid == gid).all()
 
 
 class Images:
@@ -111,6 +93,19 @@ class Images:
     @staticmethod
     def get_all():
         return session.query(Image).all()
+
+    @staticmethod
+    def get_max_image_group():
+        """
+        Get maximum group ID based on images already in a database. If none of the images
+        have an associated ID, zero is returned.
+
+        :return: Maximal image group ID associated with images inserted into the database.
+        """
+        max_group_id = session.query(func.max(Image.group_id)).scalar()
+        if max_group_id is None:
+            max_group_id = 0
+        return max_group_id
 
     @staticmethod
     def load_images(directory, extensions):
@@ -185,28 +180,24 @@ class Images:
             for image in images:
                 image_diseases = list()
                 if image_metadata["image_name"] in image.name:
-                    diseases = image_metadata["diseases"]
-                    for disease in diseases:
-                        d = Diseases.insert(name=disease["name"], token=disease["token"])
-                        image_diseases.append(d)
-                    image.diseases = image_diseases
-        #
-        # if len(metadata) == 0:
-        #     logger.warning("Metadata file is empty.")
-        # else:
-        #     for line in metadata:
-        #         if line == "":
-        #             continue
-        #         tokens = [token.strip() for token in line.split(",")]
-        #         assert len(tokens) > 1
-        #         image_name_part = tokens[0]
-        #         for image in images:
-        #             if image_name_part in image.filename:
-        #                 diseases = list()
-        #                 for disease in tokens[1:]:
-        #                     d = Diseases.insert(disease)
-        #                     diseases.append(d)
-        #                 image.diseases = diseases
+                    # process disease data
+                    try:
+                        diseases = image_metadata["diseases"]
+                        if diseases is not None and len(diseases) != 0:
+                            for disease in diseases:
+                                d = Diseases.insert(name=disease["name"], token=disease["token"])
+                                image_diseases.append(d)
+                            image.diseases = image_diseases
+                    except KeyError:
+                        image.diseases = None
+
+                    # process image group data if it exist
+                    try:
+                        group_id = int(image_metadata["group"])
+                        if group_id is not None:   # image doesn't necessarily belong to any group
+                            image.group_id = group_id + Images.get_max_image_group()
+                    except KeyError:
+                        image.group_id = None
 
     @staticmethod
     def get_by_name(image_filenames):
