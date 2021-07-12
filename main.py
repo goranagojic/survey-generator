@@ -6,7 +6,6 @@ from model.image import Images
 from model.question import *
 from model.survey import Survey, RegularSurvey, ControlSurvey
 from model.user import User
-from generators.surveygenerator import SurveyGenerator
 
 Base.metadata.create_all(engine)
 
@@ -59,28 +58,45 @@ def load(what, directory, extension):
 @click.option("--n_surveys", type=int, help="Number of surveys to be generated. If not specified, there will be "
                                             "generated as many surveys as there are unassigned questions in the "
                                             "database.")
-def generate(what, qtypes, stype, n_questions, n_surveys):
+@click.option("--nrepeat", type=int, help="If type 2 questions are generated, this option is used to specify how many"
+                                          " times will each image from the image group repeated when generating the"
+                                          " questions.", default=5)
+def generate(what, qtypes, stype, n_questions, n_surveys, nrepeat):
     if what == "questions":
         print(f"generate {what}.")
-        Questions.generate(question_types=list(qtypes))
+        Questions.generate(question_types=list(qtypes), n_repeat=nrepeat)
     elif what == "surveys":
         logger.info("Starting survey generation...")
         qtypes = list(qtypes)
-        survey_gen = SurveyGenerator(question_types=qtypes, survey_type=stype, questions_per_survey=n_questions)
-        survey_gen.generate_all(n_surveys=n_surveys)
+        if "1" in qtypes:
+            from generators.surveygeneratortype1 import SurveyGenerator
+            survey_gen = SurveyGenerator(question_types=qtypes, survey_type=stype, questions_per_survey=n_questions)
+            survey_gen.generate_all(n_surveys=n_surveys)
+        if "2" in qtypes:
+            from generators.surveygeneratortype2 import SurveyGenerator
+            survey_gen = SurveyGenerator()
+            survey_gen.generate_all(n_surveys=n_surveys)
 
 
-@tool.command(help="Exports database content to the directory specified. Currently supports survey export in json and "
+@tool.command(help="Exports database content to the specified directory. Currently supports survey export in json and "
                    "html formats. At the moment, if requested, the tool exports all survey from the database.")
 @click.argument('what', type=str, required=True)
 @click.option("--where", type=str, required=True, help="A path to directory where to export data.")
 @click.option("--export_type", type=click.Choice(["json", "html"]), default="json", help="In what format to export.")
 @click.option("--survey_type", type=click.Choice(["regular", "control"]), default="regular",
               help="What type of survey you want to export if you are exporting surveys.")
-def export(what, where, export_type, survey_type):
+@click.option("--survey_number", type=int, help="Survey type to be generated. Valid options are 1, 2, and 3.",
+              default=1)
+def export(what, where, export_type, survey_type, survey_number):
     if what == "surveys":
         logger.info("Starting survey export...")
-        SurveyGenerator.export_surveys(where, export_type=export_type, survey_type=survey_type)
+        if survey_number == 1:
+            from generators.surveygeneratortype1 import SurveyGenerator
+            SurveyGenerator.export_surveys(where, export_type=export_type, survey_type=survey_type)
+        elif survey_number == 2:
+            # there are no type 2 control surveys
+            from generators.surveygeneratortype2 import SurveyGenerator
+            SurveyGenerator.export_surveys(where, export_type=export_type, survey_type="regular")
 
 
 @tool.command(help="[Depricated] Primitive development testing tool.")

@@ -173,9 +173,10 @@ class Survey(Base):
         survey_json += "]"
 
         # survey localization - serbian
-        survey_json += ",pagePrevText:\"Prethodna\",pageNextText:\"Naredna\"," \
+        survey_json += ",questionErrorLocation: \"bottom\",showProgressBar: \"top\",pagePrevText:\"Prethodna\"," \
+                       "progressBarType: \"questions\",goNextPageAutomatic: true,pageNextText:\"Naredna\"," \
                        "completeText:\"Završi\",completedHtml: \"Uspešno ste popunili anketu. Hvala!<br>" \
-                       "<a href=\"./anketa.php\">Pređite na sledeću anketu</a>\"}"
+                       "<a href='./anketa.php'>Pređite na sledeću anketu</a>\"}"
 
         return survey_json
 

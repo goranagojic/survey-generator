@@ -74,7 +74,7 @@ class SurveyGenerator:
             survey.generate()
 
             # replace survey id placeholders in questions associated to survey with the survey id
-            survey.json = re.sub("XYZ", str(survey.id), survey.json)
+            survey.json = re.sub("^_^", str(survey.id), survey.json)
             session.commit()
 
             # stop survey generation if required number of surveys is reached
@@ -116,7 +116,7 @@ class SurveyGenerator:
             else:
                 prefix = "control"
             if export_type == "json":
-                survey_filename = f"{prefix}-survey-{survey.id}.json"
+                survey_filename = f"{prefix}-survey-{survey.id}.t1.json"
                 target_path = Path(where) / survey_filename
                 with open(target_path, "w") as fout:
                     fout.write(survey.json)
@@ -136,7 +136,7 @@ class SurveyGenerator:
                         "jqueryselector": "$"
                     })
                 })
-                survey_filename = f"{prefix}-survey-{survey.id}.html"
+                survey_filename = f"{prefix}-survey-{survey.id}.t1.html"
                 target_path = Path(where) / survey_filename
                 with open(target_path, "w") as fout:
                     fout.write(html)

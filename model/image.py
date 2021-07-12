@@ -10,9 +10,9 @@ from model.disease import Disease, Diseases, association_table, ForeignKey
 from utils.logger import logger
 
 
-img_qt2_table = Table('image_questty2', Base.metadata,
+image_qtype2 = Table('image_qtype2', Base.metadata,
                           Column("image_id", Integer, ForeignKey("image.id")),
-                          Column("question_id", Integer, ForeignKey("qt2.id")))
+                          Column("question_id", Integer, ForeignKey("qtype2.id")))
 
 
 class Image(Base):
@@ -24,8 +24,8 @@ class Image(Base):
     group_id  = Column(Integer, nullable=True)
 
     questions    = relationship("QuestionType1", back_populates="image")
-    questions_t2 = relationship("QuestionType2", back_populates="images")
-    diseases     = relationship("Disease", secondary=img_qt2_table, back_populates="images")
+    questions_t2 = relationship("QuestionType2", secondary=image_qtype2, back_populates="images")
+    diseases     = relationship("Disease", secondary=association_table, back_populates="images")
 
     @hybrid_property
     def name(self):
@@ -55,6 +55,23 @@ class Image(Base):
 
 
 class Images:
+
+    @staticmethod
+    def get_dataset_image_dims(dataset):
+        """
+        Returns tuple (width, height) for
+        :param dataset:
+        :return:
+        """
+        if dataset.lower() == "drive":
+            return 565, 584
+        elif dataset.lower() == "stare":
+            return 700, 605
+        elif dataset.lower() == "chase":
+            return 999, 960
+        else:
+            logger.error(f"Cannot find dimensions for the images in dataset. Unknown dataset {dataset}.")
+            raise ValueError(f"Cannot find dimension for the images in dataset. Unknown dataset {dataset}.")
 
     @staticmethod
     def insert(image):
@@ -106,6 +123,16 @@ class Images:
         if max_group_id is None:
             max_group_id = 0
         return max_group_id
+
+    @staticmethod
+    def get_min_image_group():
+        """
+        Get minimum group ID based on images already in a database. If none of the images have an
+        associated ID, None is returned.
+
+        :return: Minimal image group ID associated with images inserted into the database.
+        """
+        return session.query(func.min(Image.group_id)).scalar()
 
     @staticmethod
     def load_images(directory, extensions):
@@ -198,6 +225,18 @@ class Images:
                             image.group_id = group_id + Images.get_max_image_group()
                     except KeyError:
                         image.group_id = None
+
+    @staticmethod
+    def get_whole_group(gid):
+        """
+
+        :param gid:
+        :return:
+        """
+        images = session.query(Image).where(Image.group_id == gid).all()
+        if len(images) == 0:
+            return None
+        return images
 
     @staticmethod
     def get_by_name(image_filenames):

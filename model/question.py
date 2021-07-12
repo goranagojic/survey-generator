@@ -1,13 +1,17 @@
+import base64
+import random
+
+from datetime import datetime
+from pathlib import Path
 from sqlalchemy import Column, Integer, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy import and_
 from string import Template
-from datetime import datetime
 
 from utils.database import Base, session
 from utils.logger import logger
-from utils.tools import minify_json
-from model.image import Images, img_qt2_table
+from utils.tools import minify_json, fisher_yates_shuffle
+from model.image import Images
 from model.disease import Diseases
 
 
@@ -110,13 +114,13 @@ class QuestionType1(Question):
         elements: [
             {
                 type: "html",
-                name: "sXYZ-q$quid-img",
+                name: "s^_^-q$quid-img",
                 html: "<div class='img-zoom-container'><div style='width: 500px; float: left'><img onload=\\"imageZoom('$imname', '$imname-zoom')\\" id='$imname' src='images/$imfname' style='width: 100%'/></div>
                        <div id='$imname-zoom' class='img-zoom-result'></div></div>"
             },
             {
                 type: "radiogroup",
-                name: "sXYZ-q$quid-choice",
+                name: "s^_^-q$quid-choice",
                 isRequired: true,
                 state: "expanded",
                 title: "Data Vam je slika očnog dna. Od ponuđenih tvrdnji selektujte onu sa kojom se slažete.",
@@ -127,7 +131,7 @@ class QuestionType1(Question):
             },
             {
                 type: "rating",
-                name: "sXYZ-q$quid-certainty",
+                name: "s^_^-q$quid-certainty",
                 state: "expanded",
                 title: "Koliko ste sigurni u odgovor koji ste dali u prethodnom pitanju?",
                 requiredErrorText: "Molimo Vas da odgovorite na ovo pitanje.",
@@ -147,13 +151,49 @@ class QuestionType2(Question):
     __mapper_args__ = {'polymorphic_identity': 2}
 
     id      = Column(Integer, ForeignKey("question.id"), primary_key=True)
-    images = relationship("Image", secondary="img_qt2_table", back_populates="questions2")
+    group   = Column(Integer)
+    images  = relationship("Image", secondary="image_qtype2", back_populates="questions_t2")
+
+    def __init__(self, gid):
+        super(QuestionType2, self).__init__()
+        self.group = gid
 
     def __repr__(self):
-        return super().__repr__() + "\n<QuestionType2 ()>"
+        return super().__repr__() + \
+            "\n<QuestionType2 (image1_id: '{}', image2_id: '{}')>".format(
+                "None" if self.images[0] is None else str(self.images[0].id),
+                "None" if self.images[1] is None else str(self.images[1].id)
+            )
 
     def generate(self):
-        raise NotImplementedError
+        """
+        Generate JSON for a single survey question.
+        :return:
+        """
+        if len(self.images) == 2 and self.images[0] is not None and self.images[1] is not None:
+            im1, im2 = self.images[0], self.images[1]
+            im1path, im2path = str(Path(im1.root) / im1.dataset.upper() / im1.filename), \
+                               str(Path(im2.root) / im2.dataset.upper() / im2.filename)
+            with open(im1path, "rb") as im1f:
+                im1hash = "data:image/png;base64," + base64.b64encode(im1f.read()).decode('utf-8')
+            with open(im2path, "rb") as im2f:
+                im2hash = "data:image/png;base64," + base64.b64encode(im2f.read()).decode('utf-8')
+            image_width, image_height = Images.get_dataset_image_dims(self.images[0].dataset)
+            question_json = QuestionType2._get_question_template().substitute({
+                "quid": self.id,
+                "im1id": self.images[0].id,
+                "im2id": self.images[1].id,
+                "im1hash": im1hash,
+                "im2hash": im2hash,
+                "imwidth": image_width,
+                "imheight": image_height
+            })
+            self.json = minify_json(question_json)
+        else:
+            logger.error(f"Cannot generate question {self.id} because it has {len(self.images)} associated images "
+                         f"instead of two.")
+            raise ValueError(f"Cannot generate question {self.id} because it has {len(self.images)} associated images"
+                             f" instead of two.")
 
     @staticmethod
     def _get_questions():
@@ -161,8 +201,35 @@ class QuestionType2(Question):
 
     @staticmethod
     def _get_question_template():
+        # $quid         - id pitanja
+        # $im1id        - id prve slike
+        # $im2id        - id druge slike
+        # $im1hash      - base64 hash slike 1
+        # $im2hash      - base64 hash slike 2
+        # $imwidth      - sirina slike koja se prikazuje
+        # $imheight     - visina slike koja se prikazuje
         template = Template("""
-            formatirani ispis za pitanje {}
+            elements: [
+                {
+                 type: "imagepicker",
+                 name: "s^_^-q$quid-im$im1id-im$im2id-impicker",
+                 title: "Date su Vam dve slike očnog dna. Klikom na sliku izaberite onu koja je bolja za dijagnostiku.",
+                 choices: [
+                    {
+                        value: "im$im1id",
+                        imageLink: "$im1hash"
+                    },
+                    {
+                        value: "im$im2id",
+                        imageLink: "$im2hash"
+                    }
+                 ],
+                 imageHeight: $imwidth,
+                 imageWidth: $imheight,
+                 isRequired: true,
+                 requiredErrorText: "Molimo Vas da odaberete jednu od dve ponuđene slike."
+                }
+            ]
         """)
         return template
 
@@ -273,7 +340,57 @@ class Questions:
                       .all()
 
     @staticmethod
-    def generate(question_types, image_names=None):
+    def get_by_image_group(gid, unassigned=True):
+        if unassigned:
+            questions = session.query(QuestionType2).where(QuestionType2.group == gid).all()
+            return [q for q in questions if q.regular_survey is None]
+        else:
+            return session.query(QuestionType2).where(QuestionType2.group == gid).all()
+
+    @staticmethod
+    def generate_questions_t2(gid, image_group, n_repeat):
+        qts = list()
+
+        image_group = [[n_repeat, elem] for elem in image_group]   # how many times each image is selected
+        picked = 0
+
+        logger.info(f"Generating {n_repeat * len(image_group)} questions of type 2 for image group with id {gid}.")
+        logger.info(f"Each image from the group will be included into one of the questions {n_repeat} times.")
+
+        # all images from the group must be associated with questions
+        while picked != n_repeat * len(image_group):
+            print(picked)
+            # pick the first image
+            while True:
+                print(1)
+                im1_idx = random.randint(0, len(image_group)-1)
+                if image_group[im1_idx][0] != 0:
+                    im1 = image_group[im1_idx][1]
+                    image_group[im1_idx][0] -= 1
+                    picked = picked + 1
+                    break
+
+            # pick the second image
+            while True:
+                im2_idx = random.randint(0, len(image_group)-1)
+                if im1_idx != im2_idx and image_group[im2_idx][0] != 0:
+                    im2 = image_group[im2_idx][1]
+                    image_group[im2_idx][0] -= 1
+                    picked = picked + 1
+                    break
+
+            qt = QuestionType2(gid=gid)
+            qt.images.extend([im1, im2])
+            qts.append(qt)
+            logger.info(f"Generated question associated with images {im1.id} and {im2.id}.")
+
+        for n_repeat, elem in image_group:
+            assert n_repeat == 0, f"n_repeat for {elem} is {n_repeat}, but should be zero."
+
+        return qts
+
+    @staticmethod
+    def generate(question_types, n_repeat, image_names=None):
         """
         Generate questions of a given type for a given set of images. If set of images
         is specified, it must be provided as a list of image filenames. If not specified
@@ -284,6 +401,8 @@ class Questions:
                 1 - question type for an experiment 1
                 2 - question type for an experiment 2
                 3 - question type for an experiment 3
+        :param n_repeat: An integer that specifies how many times will each image from the image group be
+            repeated when generating questions.
         :param image_names: A list of string representing image filenames with extension. Filenames
             are case sensitive.
         :return: A list of generated questions.
@@ -295,28 +414,38 @@ class Questions:
                 logger.error(f"Cannot generate question of type {qtype}. Valid question types are 1, 2, 3.")
                 raise ValueError(f"Cannot generate question of type {qtype}. Valid question types are 1, 2, 3.")
 
-        if image_names is None:
-            images = Images.get_all()
-        else:
-            images = Images.get_by_name(image_names)
-        logger.info(f"Loaded {len(images)} images for question generation.")
-
         questions = list()
         for qtype in question_types:
             qtype = int(qtype)
-            for image in images:
-                if qtype == 1:
+            if qtype == 1:
+                if image_names is None:
+                    images = Images.get_all()
+                else:
+                    images = Images.get_by_name(image_names)
+                logger.info(f"Loaded {len(images)} images for question generation.")
+
+                for image in images:
                     qt = QuestionType1()
                     qt.image = image
                     questions.append(qt)
-                elif qtype == 2:
-                    qt = QuestionType2()
-                    qt.image = image
-                    questions.append(qt)
-                elif qtype == 3:
-                    qt = QuestionType3()
-                    qt.image = image
-                    questions.append(qt)
+            elif qtype == 2:
+                min_group_id = Images.get_min_image_group()
+                if min_group_id is None:
+                    logger.error(f"Skipping question generation because there are no groups associated with the "
+                                 f"images.")
+                    raise ValueError(logger.error(f"Skipping question generation because there are no groups associated"
+                                                  f" with the images."))
+
+                max_group_id = Images.get_max_image_group()
+                for gid in range(min_group_id, max_group_id+1):
+                    image_group = Images.get_whole_group(gid)
+                    if image_group is None:
+                        logger.error(f"There are no images associated with a group {gid}. Aborting.")
+                        raise ValueError(f"There are no images associated with a group {gid}. Aborting.")
+                    qt = Questions.generate_questions_t2(gid, image_group, n_repeat)
+                    questions.extend(qt)
+            elif qtype == 3:
+                raise NotImplementedError
 
         logger.info(f"Generated {len(questions)} questions.")
         Questions.bulk_insert(questions)
