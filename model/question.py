@@ -349,45 +349,46 @@ class Questions:
 
     @staticmethod
     def generate_questions_t2(gid, image_group, n_repeat):
-        qts = list()
 
-        image_group = [[n_repeat, elem] for elem in image_group]   # how many times each image is selected
-        picked = 0
+        # generate enough empty questions
+        questions = [QuestionType2(gid=gid) for _ in range(0, (n_repeat * len(image_group)) // 2)]
 
-        logger.info(f"Generating {n_repeat * len(image_group)} questions of type 2 for image group with id {gid}.")
-        logger.info(f"Each image from the group will be included into one of the questions {n_repeat} times.")
+        # make all images in a group repeat n times and shuffle them
+        image_group = image_group * n_repeat
+        image_group = fisher_yates_shuffle(image_group)
+        assert len(image_group) % 2 == 0
 
-        # all images from the group must be associated with questions
-        while picked != n_repeat * len(image_group):
-            print(picked)
-            # pick the first image
-            while True:
-                print(1)
-                im1_idx = random.randint(0, len(image_group)-1)
-                if image_group[im1_idx][0] != 0:
-                    im1 = image_group[im1_idx][1]
-                    image_group[im1_idx][0] -= 1
-                    picked = picked + 1
-                    break
+        # This loop sometimes does not finish if the id of the last image to be assigned is same as the id the image
+        # in the last question with one assigned image. If this happens, quick fix for now is to finish program
+        # execution and run it again until the loop completes.
+        inum = 0
+        while True:
+            # stop when all images from the list are assigned to one of the questions
+            if inum == len(image_group):
+                break
 
-            # pick the second image
-            while True:
-                im2_idx = random.randint(0, len(image_group)-1)
-                if im1_idx != im2_idx and image_group[im2_idx][0] != 0:
-                    im2 = image_group[im2_idx][1]
-                    image_group[im2_idx][0] -= 1
-                    picked = picked + 1
-                    break
+            image = image_group[inum]
+            # choose one of the questions with randomly with equal probability
+            qnum = random.randint(0, len(questions)-1)
 
-            qt = QuestionType2(gid=gid)
-            qt.images.extend([im1, im2])
-            qts.append(qt)
-            logger.info(f"Generated question associated with images {im1.id} and {im2.id}.")
+            # repick the question if already picked question has two assigned images or an id of the only assigned
+            # image is same as the id of the image to be assigned to the question
+            if len(questions[qnum].images) == 2:
+                continue
+            if len(questions[qnum].images) == 1 and questions[qnum].images[0].id == image.id:
+                continue
 
-        for n_repeat, elem in image_group:
-            assert n_repeat == 0, f"n_repeat for {elem} is {n_repeat}, but should be zero."
+            # assign the image to the question and go to the next image
+            questions[qnum].images.append(image)
+            inum = inum + 1
 
-        return qts
+        for question in questions:
+            logger.info(f"Question {question.id} associated with images {question.images[0].id} "
+                        f"and {question.images[1].id}.")
+            assert len(question.images) == 2
+            assert question.images[0].id != question.images[1].id
+
+        return questions
 
     @staticmethod
     def generate(question_types, n_repeat, image_names=None):
