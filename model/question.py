@@ -1,5 +1,6 @@
 import base64
 import random
+import itertools
 
 from datetime import datetime
 from pathlib import Path
@@ -170,19 +171,23 @@ class QuestionType2(Question):
         Generate JSON for a single survey question.
         :return:
         """
-        if len(self.images) == 2 and self.images[0] is not None and self.images[1] is not None:
-            im1, im2 = self.images[0], self.images[1]
-            im1path, im2path = str(Path(im1.root) / im1.dataset.upper() / im1.filename), \
-                               str(Path(im2.root) / im2.dataset.upper() / im2.filename)
+        if len(self.images) == 3 and self.images[0] is not None and self.images[1] is not None:
+            im1, im2, im0 = self.images[0], self.images[1], self.images[2]
+            im1path = str(Path(im1.root) / im1.dataset.upper() / im1.filename)
+            im2path = str(Path(im2.root) / im2.dataset.upper() / im2.filename)
+            im0path = str(Path(im0.root) / im0.dataset / im0.filename)
             with open(im1path, "rb") as im1f:
                 im1hash = "data:image/png;base64," + base64.b64encode(im1f.read()).decode('utf-8')
             with open(im2path, "rb") as im2f:
                 im2hash = "data:image/png;base64," + base64.b64encode(im2f.read()).decode('utf-8')
+            with open(im0path, "rb") as im0f:
+                im0hash = "data:image/png;base64," + base64.b64encode(im0f.read()).decode('utf-8')
             image_width, image_height = Images.get_dataset_image_dims(self.images[0].dataset)
             question_json = QuestionType2._get_question_template().substitute({
                 "quid": self.id,
                 "im1id": self.images[0].id,
                 "im2id": self.images[1].id,
+                "im0hash": im0hash,
                 "im1hash": im1hash,
                 "im2hash": im2hash,
                 "imwidth": image_width,
@@ -204,17 +209,34 @@ class QuestionType2(Question):
         # $quid         - id pitanja
         # $im1id        - id prve slike
         # $im2id        - id druge slike
-        # $im1hash      - base64 hash slike 1
-        # $im2hash      - base64 hash slike 2
+        # $im0hash      - base64 hash originalne slike (slike 0)
+        # $im1hash      - base64 hash prve segmentacione mape (slike 1)
+        # $im2hash      - base64 hash druge segmentacione mape (slike 2)
         # $imwidth      - sirina slike koja se prikazuje
         # $imheight     - visina slike koja se prikazuje
         template = Template("""
             elements: [
                 {
-                 type: "imagepicker",
-                 name: "s^_^-q$quid-im$im1id-im$im2id-impicker",
-                 title: "Date su Vam dve slike očnog dna. Klikom na sliku izaberite onu koja je bolja za dijagnostiku.",
-                 choices: [
+                    type: "imagepicker",
+                    name: "s^_^-q$quid-im$im1id-im$im2id-img",
+                    title: "Originalna slika",
+                    hideNumber: true,
+                    choices: [
+                    {
+                        value: "original",
+                        imageLink: "$im0hash"
+                    }
+                 ],
+                 startWithNewLine: true,
+                 readOnly: true,
+                 imageTag: "original"
+                },
+                {
+                    type: "imagepicker",
+                    name: "s^_^-q$quid-im$im1id-im$im2id-impicker",
+                    title: "Segmentacione mape",
+                    hideNumber: true,
+                    choices: [
                     {
                         value: "im$im1id",
                         imageLink: "$im1hash"
@@ -223,11 +245,11 @@ class QuestionType2(Question):
                         value: "im$im2id",
                         imageLink: "$im2hash"
                     }
-                 ],
-                 imageHeight: $imwidth,
-                 imageWidth: $imheight,
-                 isRequired: true,
-                 requiredErrorText: "Molimo Vas da odaberete jednu od dve ponuđene slike."
+                    ],
+                    isRequired: true,
+                    requiredErrorText: "Molimo Vas da odaberete jednu od dve ponuđene segmentacione mape.",
+                    startWithNewLine: false,
+                    imageTag: "segmaps"
                 }
             ]
         """)
@@ -342,53 +364,121 @@ class Questions:
     @staticmethod
     def get_by_image_group(gid, unassigned=True):
         if unassigned:
+            # return all questions of the same group that are not already attached to some of the surveys
             questions = session.query(QuestionType2).where(QuestionType2.group == gid).all()
             return [q for q in questions if q.regular_survey is None]
         else:
+            # return all questions of the same group
             return session.query(QuestionType2).where(QuestionType2.group == gid).all()
 
     @staticmethod
-    def generate_questions_t2(gid, image_group, n_repeat):
+    def generate_questions_t2(gid, image_group, n_repeat, redundancy=50, n_redundancy=1, flip_images=True):
+        """
 
-        # generate enough empty questions
-        questions = [QuestionType2(gid=gid) for _ in range(0, (n_repeat * len(image_group)) // 2)]
+        :param gid:
+        :param image_group:
+        :param n_repeat:
+        :param redundancy: Should be in percentages. How many questions will be repeated to create redundancy. It should
+            be between 0 and 100.
+        :return:
+        """
 
-        # make all images in a group repeat n times and shuffle them
-        image_group = image_group * n_repeat
+        # generate all combinations of images in a group
+        # it will be total of 28 image pairs for a group of 8 images
+        image_group = [i for i in itertools.combinations(iterable=image_group, r=2)]
+
+        # repeat some pairs to create redundancy, number of pairs is determined according to the redundancy parameter
+        # which represents a percent of pairs to be repeated
+        assert 0 <= redundancy <= 100
+        dupes = list()
+
+        # sample different question indices to duplicate them
+        iindices = random.sample(range(0, len(image_group)), (redundancy * len(image_group)) // 100)
+        for idx in iindices:
+            dupes.append(image_group[idx])
+            print(f"Added duplicate image pair ({image_group[idx][0].id}, {image_group[idx][1].id}).")
+
+        # replicate duplicates n_redundancy times
+        dupes = dupes * n_redundancy
+        image_group.extend(dupes)
+
+        # shuffle images before creating the questions
         image_group = fisher_yates_shuffle(image_group)
-        assert len(image_group) % 2 == 0
 
-        # This loop sometimes does not finish if the id of the last image to be assigned is same as the id the image
-        # in the last question with one assigned image. If this happens, quick fix for now is to finish program
-        # execution and run it again until the loop completes.
-        inum = 0
-        while True:
-            # stop when all images from the list are assigned to one of the questions
-            if inum == len(image_group):
-                break
+        # get original image for a segmentation mask group
+        # the original should be the last image in an array
+        original = Images.get_original_for_segmap(image_group[0][0])
 
-            image = image_group[inum]
-            # choose one of the questions with randomly with equal probability
-            qnum = random.randint(0, len(questions)-1)
-
-            # repick the question if already picked question has two assigned images or an id of the only assigned
-            # image is same as the id of the image to be assigned to the question
-            if len(questions[qnum].images) == 2:
-                continue
-            if len(questions[qnum].images) == 1 and questions[qnum].images[0].id == image.id:
-                continue
-
-            # assign the image to the question and go to the next image
-            questions[qnum].images.append(image)
-            inum = inum + 1
-
-        for question in questions:
-            logger.info(f"Question {question.id} associated with images {question.images[0].id} "
-                        f"and {question.images[1].id}.")
-            assert len(question.images) == 2
-            assert question.images[0].id != question.images[1].id
+        # create questions and assign them to the images
+        questions = list()
+        for i, (im1, im2) in enumerate(image_group):
+            q = QuestionType2(gid=gid)
+            q.images.extend([im1, im2, original])
+            questions.append(q)
+            print(f"Question {i} is associated with images {im1.id} and {im2.id}.")
 
         return questions
+
+        # generate enough empty questions
+        # questions = [QuestionType2(gid=gid) for _ in range(0, (n_repeat * len(image_group)) // 2)]
+        #
+        # # make all images in a group repeat n times and shuffle them
+        # image_group = image_group * n_repeat
+        # image_group = fisher_yates_shuffle(image_group)
+        # assert len(image_group) % 2 == 0
+        #
+        # # get original, color image for the corresponding group of segmentation masks
+        # original = Images.get_original_for_segmap(image_group[0])
+        #
+        # # This loop sometimes does not finish if the id of the last image to be assigned is same as the id the image
+        # # in the last question with one assigned image. If this happens, quick fix for now is to finish program
+        # # execution and run it again until the loop completes.
+        # inum = 0
+        # while True:
+        #     # stop when all images from the list are assigned to the questions
+        #     if inum == len(image_group):
+        #         break
+        #
+        #     image = image_group[inum]
+        #     # choose one of the questions with randomly with equal probability
+        #     qnum = random.randint(0, len(questions)-1)
+        #
+        #     # repick the question if already picked question has two assigned images or an id of the only assigned
+        #     # image is same as the id of the image to be assigned to the question
+        #     if len(questions[qnum].images) == 2:
+        #         print(f"\n1. picked={qnum}")
+        #         Questions._debug(questions)
+        #         continue
+        #     if len(questions[qnum].images) == 1 and questions[qnum].images[0].id == image.id:
+        #         print(f"\n2. picked={qnum}")
+        #         Questions._debug(questions)
+        #         continue
+        #
+        #     # assign the image to the question and go to the next image
+        #     questions[qnum].images.append(image)
+        #     inum = inum + 1
+        #
+        # for i, question in enumerate(questions):
+        #     logger.info(f"{i}. Question {question.id} associated with images {question.images[0].id} "
+        #                 f"and {question.images[1].id}.")
+        #     assert len(question.images) == 2
+        #     assert question.images[0].id != question.images[1].id
+        #
+        #     question.images.append(original)
+        #
+        # return questions
+
+    @staticmethod
+    def _debug(questions):
+        for i, question in enumerate(questions):
+            print("---------------------------------------")
+            if len(question.images) == 0:
+                print(f"q{i}. imgs={len(question.images)}")
+            elif len(question.images) == 1:
+                print(f"q{i}. imgs={len(question.images)}, img1_id: {question.images[0].id}")
+            elif len(question.images) == 2:
+                print(f"q{i}. imgs={len(question.images)}, img1_id: {question.images[0].id}, "
+                      f"img2_id: {question.images[1].id}")
 
     @staticmethod
     def generate(question_types, n_repeat, image_names=None):

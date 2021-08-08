@@ -25,6 +25,8 @@ class SurveyGenerator:
             a possible number of surveys that can be generated, the method generate as many surveys as it can.
         :return:
         """
+        print("generator 2")
+
         current_image_group = Images.get_min_image_group()
         max_image_group = Images.get_max_image_group()
 
@@ -32,7 +34,7 @@ class SurveyGenerator:
         while current_image_group <= max_image_group:
 
             questions = Questions.get_by_image_group(gid=current_image_group, unassigned=True)
-            print(f">>> Dobavio pitanja za grupu {current_image_group}.")
+            # print(f">>> Dobavio pitanja za grupu {current_image_group}.")
             if questions is None or len(questions) == 0:
                 logger.info(f"All questions assigned with group id {current_image_group} are already assigned to an "
                             f"existing survey. Skipping.")
@@ -145,11 +147,9 @@ class SurveyGenerator:
     
     <!-- jquery and survey.jquery -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <link href="https://unpkg.com/survey-jquery@1.8.41/modern.css" type="text/css" rel="stylesheet" />
-    <script src="https://unpkg.com/survey-jquery@1.8.41/survey.jquery.min.js"></script>
+    <link href="https://unpkg.com/survey-jquery@1.8.56/modern.css" type="text/css" rel="stylesheet" />
+    <script src="https://unpkg.com/survey-jquery@1.8.56/survey.jquery.min.js"></script>
     
-    <!-- zoom script -->
-    <!-- see: https://www.w3schools.com/howto/tryit.asp?filename=tryhow_js_image_zoom -->
     <script>
       let DoctorData = {
          //PHP-DOCTOR-DATA-REPLACE
@@ -171,17 +171,113 @@ class SurveyGenerator:
     
     <!-- Init survey -->
     <script>
-      Survey.StylesManager.applyTheme("modern");
+      Survey
+        .StylesManager
+        .applyTheme("modern");
+
+      Survey
+        .Serializer
+        .addProperty("imagepicker", "imageTag:text")
+        
       var surveyJSON = $survey_json
       function sendDataToServer(sender) {
           let aid = SurveyData.id;
           let akey = SurveyData.APIKey;
           let xhr = new XMLHttpRequest();
-          xhr.open("POST", "./advance.php?anketa=' + aid + "&api=' + akey);
+          xhr.open("POST", "./advance.php?anketa=" + aid + "&api=" + akey);
           xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
           xhr.send(JSON.stringify(sender.data));
       }
       var survey = new Survey.Model(surveyJSON);
+      
+      survey
+        .onAfterRenderPanel
+        .add(function (sender, options) {
+            console.debug("Opaljen onAfterRenderPanel dogadjaj");
+           // options.htmlElement - an HTML element bound to the panel object
+           // options.panel       - a panel object for which the event is fired 
+        });
+        
+      survey
+        .onAfterRenderPage
+        .add(function (sender, options) {
+            console.debug("Opaljen onAfterRenderPage dogadjaj");
+            // options.page - a page object for which the event is fired, typically the current/active page
+            // options.htmlElement - an HTML element bound to the page object
+        });
+        
+      survey
+        .onAfterRenderQuestion
+        .add(function (sender, options) {
+            // options.question - a page object for which the event is fired, typically the current/active page
+            // options.htmlElement - an HTML element bound to the page object
+            console.debug("Opaljen onAfterRenderQuestion dogadjaj");
+            if (!options.question.imageTag) return;
+            if (options.question.imageTag === "original") {
+                options.htmlElement.parentElement.attributes.style.value = "flex: 1; width: 100%";
+            } else if (options.question.imageTag === "segmaps") {
+                options.htmlElement.parentElement.attributes.style.value = "flex: 2; width: 100%";
+            } else {
+                console.debug("Nije ni originalni ni segmaps imagepicker")
+            }
+            
+            let container = document.getElementsByClassName("sv-row")
+            if (container.length !== 1) {
+                console.debug("Iz nekog razloga postoji vise od jednog elementa sa sv-row klasom... Izlazim.");
+                return;
+            }
+            container = container[0];
+            let images = document.getElementsByTagName("img");
+            let minimal_width = 300;  // Т7Т: минимална дозвољена ширина слике у пикселима.
+            for (image in images) {   // Т7Т: иницијализација величина слика да би се величине слика добро рачунале за случај када могу да стану максимално 2 једна до друге.
+              if (images[image].style) {
+                let old_width = images[image].width;
+                images[image].style.width = minimal_width;
+                images[image].width = minimal_width;
+                images[image].style.height = Math.floor(images[image].height*minimal_width/old_width);
+                images[image].height = Math.floor(images[image].height*minimal_width/old_width);
+              }
+            }
+            
+            let container_original = container.children[0];
+            let container_original_picture = container_original.children[0].children[1].children[0];  // Т7Т: најужи део у којем се ицртава оригинал слика, преузима се да не би морали да се рачунају заузећа од стране маргина, тапацирања и ивица.
+            let container_segment = container.children[1];
+            let container_segment_pictures = container_segment.children[0].children[1].children[0];  // Т7Т: најужи део у којем се ицртавају сегментационе слике, преузима се да не би морали да се рачунају заузећа од стране маргина, тапацирања и ивица.
+
+            let new_width = -1;
+            if (Math.floor(container.offsetWidth) < 675) {  // Т7Т: ако укупна ширина доступна за приказ питања није барем 675, рачунамо да не могу стати ни 2 слике како треба једна до друге, па стављамо величину те једне видљиве слике на максималну доступну, а минимално 500. -->
+              new_width = Math.floor(container_original_picture.offsetWidth-8); 
+              if (new_width < 500)
+                new_width = 500;
+            } else if (Math.floor(container.offsetWidth) < 1000) {  // Т7Т: ако укупна ширина доступна за приказ питања није барем 950, рачунамо да не могу стати све 3 слике ако су ширине слика веће од 300 пиксела па их стављамо на максималну доступну ширину за 2 слике.
+              new_width = Math.floor(container_segment_pictures.offsetWidth- 32);  // Т7Т: рачунање доступног простора чисто за 1 слику у сегментационом делу
+              new_width = new_width + Math.floor(container_original_picture.offsetWidth-8); // Т7Т: додавање на ширину за 1 сегментациону слику и доступну ширину за оригинал
+              new_width = Math.floor(new_width/2); // Т7Т: рачунање ширине за појединачну слику (у овој верзији све слике су исте ширине (ако су истог односа онда су и исте висине))
+            } else {
+              new_width = Math.floor(container_segment_pictures.offsetWidth-Math.ceil(container_segment.offsetWidth*0.05) - 32); // Т7Т: рачунање доступног простора чисто за 2 слике у сегментационом делу
+              new_width = new_width + Math.floor(container_original_picture.offsetWidth-8); // Т7Т: додавање на ширину за 2 сегментационе слике и доступну ширину за оригинал
+              new_width = Math.floor(new_width/3); // Т7Т: рачунање ширине за појединачну слику (у овој верзији све слике су исте ширине (ако су истог односа онда су и исте висине))
+            }
+            if (new_width < minimal_width) // Т7Т: провера смислености; апсолутни дозвољени минимум за ширину слике у анкети; ако је срачуната величина за слику мања од минималне ширине у пикселима поставља се на минималну ширину у пискелима. -->
+              new_width = minimal_width;
+            for (image in images) {
+                if (images[image].style) {
+                  let old_width = images[image].width;
+                  images[image].style.width = new_width;
+                  images[image].width = new_width;
+                  images[image].style.height = Math.floor(images[image].height*new_width/old_width);
+                  images[image].height = Math.floor(images[image].height*new_width/old_width);
+                }
+            }
+            
+            // dodavanje vertikalnih razmaka iznad i ispod opisa
+            description = document.getElementsByClassName("sv-description")[0].children[0]
+            description.style = "position: absolute; margin-top: 5px; margin-bottom: 10px;"
+            
+        });
+        
+      survey.locale = "rs"
+      
       $jqueryselector("#surveyContainer").Survey({
           model: survey,
           onComplete: sendDataToServer

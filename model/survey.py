@@ -173,9 +173,9 @@ class Survey(Base):
         survey_json += "]"
 
         # survey localization - serbian
-        survey_json += ",questionErrorLocation: \"bottom\",showProgressBar: \"top\",pagePrevText:\"Prethodna\"," \
-                       "progressBarType: \"questions\",goNextPageAutomatic: true,pageNextText:\"Naredna\"," \
-                       "completeText:\"Završi\",completedHtml: \"Uspešno ste popunili anketu. Hvala!<br>" \
+        survey_json += ",questionErrorLocation: \"bottom\",showProgressBar: \"top\"," \
+                       "progressBarType: \"questions\",goNextPageAutomatic: false," \
+                       "completedHtml: \"Uspešno ste popunili anketu. Hvala!<br>" \
                        "<a href='./anketa.php'>Pređite na sledeću anketu</a>\"}"
 
         return survey_json
@@ -191,7 +191,8 @@ class Survey(Base):
         {
             name: "page-$pid",
             $questions,
-            title: "Pitanje $pid"
+            title: "Pitanje $pid",
+            description: "Sa leve strane je prikazana slika očnog dna. Sa desne strane su prikazane dve segmentacione mape sa segmentisanom krvnom mrežom za datu sliku očnog dna. Klikom na jednu od dve segmentacione mape odaberite onu za koju smatrate da bolje oslikava krvnu mrežu očnog dna."
         }
         """)
 

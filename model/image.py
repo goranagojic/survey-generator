@@ -1,7 +1,8 @@
 import json
 
-from sqlalchemy import Column, Integer, String, Table, Enum, select, func
+from sqlalchemy import Column, Integer, String, Table, Enum, select, func, and_
 from sqlalchemy.orm import relationship
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.hybrid import hybrid_property
 from pathlib import Path
 
@@ -22,6 +23,7 @@ class Image(Base):
     filename  = Column(String(50), nullable=False, unique=True)
     dataset   = Column(String, nullable=False)
     group_id  = Column(Integer, nullable=True)
+    type      = Column(String, nullable=True)
 
     questions    = relationship("QuestionType1", back_populates="image")
     questions_t2 = relationship("QuestionType2", secondary=image_qtype2, back_populates="images")
@@ -64,11 +66,15 @@ class Images:
         :return:
         """
         if dataset.lower() == "drive":
-            return 565, 584
+            # return 395, 414
+            return 415, 434
+            # return 565, 584
         elif dataset.lower() == "stare":
-            return 700, 605
+            return 400, 305
+            # return 700, 605
         elif dataset.lower() == "chase":
-            return 999, 960
+            # return 999, 960
+            return 399, 368
         else:
             logger.error(f"Cannot find dimensions for the images in dataset. Unknown dataset {dataset}.")
             raise ValueError(f"Cannot find dimension for the images in dataset. Unknown dataset {dataset}.")
@@ -155,15 +161,12 @@ class Images:
 
         # all extensions to lowercase
         extensions = [ext.lower() for ext in extensions]
+        extensions = extensions[0]
         logger.info(f"Image extensions to be loaded {extensions}.")
         logger.info(f"Loading images from {directory}...")
 
         img_paths = Path(directory).glob("*")
         if extensions is not None or len(extensions) != 0:
-            # for img_path in img_paths:
-            #     if img_path.suffix.lower() in extensions:
-            #         print(img_path)
-            #         images = list()
             images = [Image(img_path) for img_path in img_paths if img_path.suffix.lower() in extensions]
         else:
             images = [Image(img_path) for img_path in img_paths]
@@ -226,6 +229,14 @@ class Images:
                     except KeyError:
                         image.group_id = None
 
+                    # get image type if exists for the image
+                    try:
+                        type = image_metadata["type"]
+                        if type is not None:        # image type can be unknown
+                            image.type = type
+                    except KeyError:
+                        image.type = None
+
     @staticmethod
     def get_whole_group(gid):
         """
@@ -250,3 +261,24 @@ class Images:
         for filename in image_filenames:
             filters.append(Image.filename == filename)
         return session.query(Image).filter(*filters).all()
+
+    @staticmethod
+    def get_original_for_segmap(segmap):
+        """
+        Searches for the original color image in a database for a corresponding segmentation mask. It is assumed that
+        the segmentaion mask is named similar to the pattern: <number>-<network>-<dataset>.<extension> and that the
+        original is named like <number>.<extension>
+
+        :param segmap: An instance of Image class representing a segmentation map with filename similar to
+            <number>-<network>-<dataset>.
+        :return:
+        """
+        assert segmap is not None
+        filename = segmap.filename.split('-')[0]    # for segmentation mask filename like <number>-<network>-<dataset>
+                                                    # extracts <number> and uses it to query for the original image of
+                                                    # that name
+
+        try:
+            return session.query(Image).where(and_(Image.type == "original", Image.filename.contains(filename))).one()
+        except NoResultFound:
+            print(f"I cannot find an original for a segmentation map {segmap.filename}.")
