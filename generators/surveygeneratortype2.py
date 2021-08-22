@@ -58,7 +58,7 @@ class SurveyGenerator:
             survey.generate()
 
             # replace survey id placeholders in questions associated to survey with the survey id
-            survey.json = re.sub("^_^", str(survey.id), survey.json)
+            survey.json.replace("^_^", str(survey.id))
 
             session.commit()
 
