@@ -59,6 +59,7 @@ class SurveyGenerator:
 
             # replace survey id placeholders in questions associated to survey with the survey id
             survey.json = re.sub("^_^", str(survey.id), survey.json)
+
             session.commit()
 
             # stop survey generation if required number of surveys is reached
@@ -178,6 +179,10 @@ class SurveyGenerator:
       Survey
         .Serializer
         .addProperty("imagepicker", "imageTag:text")
+        
+      Survey
+        .Serializer
+        .addProperty("survey", "surveyID:number")
         
       var surveyJSON = $survey_json
       function sendDataToServer(sender) {

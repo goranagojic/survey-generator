@@ -173,8 +173,9 @@ class Survey(Base):
         survey_json += "]"
 
         # survey localization - serbian
-        survey_json += ",questionErrorLocation: \"bottom\",showProgressBar: \"top\"," \
-                       "progressBarType: \"questions\",goNextPageAutomatic: false," \
+        survey_json += f",surveyID: {str(self.id)},"
+        survey_json += "questionErrorLocation: \"bottom\",showProgressBar: \"top\"," \
+                       "progressBarType: \"pages\",goNextPageAutomatic: false," \
                        "completedHtml: \"Uspešno ste popunili anketu. Hvala!<br>" \
                        "<a href='./anketa.php'>Pređite na sledeću anketu</a>\"}"
 
